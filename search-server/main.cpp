@@ -11,13 +11,13 @@ int main() {
     for (int i = 0; i < 1000; ++i) {
         if ((i < 10) 
             && (i / the_number == 1) && (i % the_number == 0)) {
-            count += 1;   
+            ++count;   
         } else if ((i >= 10) && (i < 100) 
                     && ((i / 10 == the_number) || (i % 10 == the_number))) {
-            count += 1;
+            ++count;
         } else if ((i >= 100) 
                     && ((i / 100 == the_number) || (i % 100 / 10 == the_number) || (i % 10 == the_number))) {
-            count += 1;     
+            ++count;     
         }
     }
     cout << count << endl;
