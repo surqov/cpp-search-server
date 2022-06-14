@@ -9,7 +9,7 @@ int main() {
     int count = 0;
     int the_number = 3;
     for (int i = 0; i < 1000; ++i) {
-        if ((i == the_number) || (i / 10 == the_number) || (i % 10 == the_number) ||  (i / 100 == the_number) || (i % 100 / 10 == the_number) || (i % 10 == the_number)) {
+        if ((i == the_number) || (i / 10 == the_number) || (i % 10 == the_number) ||  (i / 100 == the_number) || (i % 100 / 10 == the_number)) {
             ++count;     
         }
     }
