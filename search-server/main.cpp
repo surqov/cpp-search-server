@@ -8,10 +8,12 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <numeric>
 
 using namespace std;
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
+const double ACCURACY = 1e-6; // избавился от магического числа путем вынесения в константу 
 
 string ReadLine() {
     string s;
@@ -79,27 +81,16 @@ public:
                 status
             });
     }
-       
-    template <typename KeyMapper>
-    vector<Document> FindTopDocuments(const string& raw_query, KeyMapper key_mapper) const {            
-        const Query query = ParseQuery(raw_query);
-        vector<Document> bar;
-        vector<Document> matched_documents;
-        if constexpr(is_same_v<KeyMapper, DocumentStatus>) {
-                matched_documents = FindAllDocuments(query, key_mapper);
-        } else {  
-                bar = FindAllDocuments(query);
-                copy_if(bar.begin(), bar.end(), std::back_inserter(matched_documents), 
-                            [key_mapper, this]
-                            (const auto& item) {
-                                return (key_mapper(item.id, documents_.at(item.id).status, item.rating));
-                            }
-                );
-        }  
 
+    // переписал логику функции, теперь предикат отрабатывает внутрии FindAllDocuments   
+    template <typename Predicate>
+    vector<Document> FindTopDocuments(const string& raw_query, Predicate predicate) const {            
+        const Query query = ParseQuery(raw_query);
+        vector<Document> matched_documents;
+        matched_documents = FindAllDocuments(query, predicate);
         sort(matched_documents.begin(), matched_documents.end(),
              [](const Document& lhs, const Document& rhs) {
-                if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
+                if (abs(lhs.relevance - rhs.relevance) < ACCURACY) {
                     return lhs.rating > rhs.rating;
                 } else {
                     return lhs.relevance > rhs.relevance;
@@ -113,22 +104,16 @@ public:
         return matched_documents;
     }
     
+    // передаем внутрь FindAllDocuments стандартный предикат в случае отсутствия второго вызываемого аргумента 
+    // есть ли возможность избежать здесь перегрузки функций? например при объявлении функции указать дефолтное значение предиката?
     vector<Document> FindTopDocuments(const string& raw_query) const {            
         const Query query = ParseQuery(raw_query);
-        const auto key_mapper = [](int document_id, DocumentStatus status, int rating) { return status == DocumentStatus::ACTUAL;};
-        auto bar = FindAllDocuments(query, DocumentStatus::ACTUAL);
-        vector<Document> matched_documents;
-        
-        copy_if(bar.begin(), bar.end(), std::back_inserter(matched_documents), 
-                [key_mapper, this]
-                (const auto& item) {
-                    return (key_mapper(item.id, documents_.at(item.id).status, item.rating));
-                }
-                );
+        const auto predicate = [](int document_id, DocumentStatus status, int rating) { return status == DocumentStatus::ACTUAL;};
+        auto matched_documents = FindAllDocuments(query, predicate);
         
         sort(matched_documents.begin(), matched_documents.end(),
              [](const Document& lhs, const Document& rhs) {
-                if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
+                if (abs(lhs.relevance - rhs.relevance) < ACCURACY) { // избавился от магического числа
                     return lhs.rating > rhs.rating;
                 } else {
                     return lhs.relevance > rhs.relevance;
@@ -197,10 +182,8 @@ private:
         if (ratings.empty()) {
             return 0;
         }
-        int rating_sum = 0;
-        for (const int rating : ratings) {
-            rating_sum += rating;
-        }
+        int rating_sum = accumulate(ratings.begin(), ratings.end(), 0); // завернул в accumulate
+        
         return rating_sum / static_cast<int>(ratings.size());
     }
     
@@ -249,17 +232,17 @@ private:
         return log(GetDocumentCount() * 1.0 / word_to_document_freqs_.at(word).size());
     }
 
-    vector<Document> FindAllDocuments(const Query& query, DocumentStatus status) const {
+    template <typename Predicate>
+    vector<Document> FindAllDocuments(const Query& query, Predicate predicate_or_status) const {
         map<int, double> document_to_relevance;
+ 
         for (const string& word : query.plus_words) {
             if (word_to_document_freqs_.count(word) == 0) {
                 continue;
             }
             const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
             for (const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
-                if (documents_.at(document_id).status == status) {
-                    document_to_relevance[document_id] += term_freq * inverse_document_freq;
-                }
+                    document_to_relevance[document_id] += term_freq * inverse_document_freq;                 
             }
         }
         
@@ -272,47 +255,32 @@ private:
             }
         }
 
-        vector<Document> matched_documents;
+        vector<Document> bar, matched_documents;
         for (const auto [document_id, relevance] : document_to_relevance) {
             matched_documents.push_back({
                 document_id,
                 relevance,
                 documents_.at(document_id).rating
             });
-        }
-        return matched_documents;
-    }
-    
-    vector<Document> FindAllDocuments(const Query& query) const {
-        map<int, double> document_to_relevance;
-        for (const string& word : query.plus_words) {
-            if (word_to_document_freqs_.count(word) == 0) {
-                continue;
-            }
-            const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
-            for (const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
-                    document_to_relevance[document_id] += term_freq * inverse_document_freq;
-            }
         }
         
-        for (const string& word : query.minus_words) {
-            if (word_to_document_freqs_.count(word) == 0) {
-                continue;
-            }
-            for (const auto [document_id, _] : word_to_document_freqs_.at(word)) {
-                document_to_relevance.erase(document_id);
-            }
+        if (is_same_v<Predicate, DocumentStatus>) {
+            const auto predicate = [predicate_or_status](int document_id, DocumentStatus status, int rating) { return status == predicate_or_status;};
+            copy_if(matched_documents.begin(), matched_documents.end(), std::back_inserter(bar), 
+                [predicate, this]
+                    (const auto& item) {
+                            return (predicate(item.id, documents_.at(item.id).status, item.rating));
+                    });
+        } else {
+            copy_if(matched_documents.begin(), matched_documents.end(), std::back_inserter(bar), 
+                [predicate_or_status, this]
+                    (const auto& item) {
+                            return (predicate_or_status(item.id, documents_.at(item.id).status, item.rating));
+                    });   
         }
-
-        vector<Document> matched_documents;
-        for (const auto [document_id, relevance] : document_to_relevance) {
-            matched_documents.push_back({
-                document_id,
-                relevance,
-                documents_.at(document_id).rating
-            });
-        }
-        return matched_documents;
+        
+                         
+        return bar;
     }
 };
 
@@ -342,8 +310,8 @@ int main() {
         PrintDocument(document);
     }
 
-    cout << "ACTUAL:"s << endl;
-    for (const Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s, [](int document_id, DocumentStatus status, int rating) { return status == DocumentStatus::ACTUAL; })) {
+    cout << "BANNED:"s << endl;
+    for (const Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s, DocumentStatus::BANNED)) {
         PrintDocument(document);
     }
 
@@ -353,4 +321,4 @@ int main() {
     }
 
     return 0;
-} 
+}  
