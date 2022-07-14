@@ -84,10 +84,16 @@ public:
 
     // переписал логику функции, теперь предикат отрабатывает внутрии FindAllDocuments   
     template <typename Predicate>
-    vector<Document> FindTopDocuments(const string& raw_query, Predicate predicate) const {            
+    vector<Document> FindTopDocuments(const string& raw_query, Predicate predicate_or_status) const {            
         const Query query = ParseQuery(raw_query);
         vector<Document> matched_documents;
-        matched_documents = FindAllDocuments(query, predicate);
+        if constexpr(is_same_v<Predicate, DocumentStatus>) {
+            const auto predicate = [predicate_or_status](int document_id, DocumentStatus status, int rating) { return status == predicate_or_status;};
+            matched_documents = FindAllDocuments(query, predicate);
+        } else {
+            matched_documents = FindAllDocuments(query, predicate_or_status);
+        } 
+        
         sort(matched_documents.begin(), matched_documents.end(),
              [](const Document& lhs, const Document& rhs) {
                 if (abs(lhs.relevance - rhs.relevance) < ACCURACY) {
@@ -105,26 +111,10 @@ public:
     }
     
     // передаем внутрь FindAllDocuments стандартный предикат в случае отсутствия второго вызываемого аргумента 
-    // есть ли возможность избежать здесь перегрузки функций? например при объявлении функции указать дефолтное значение предиката?
     vector<Document> FindTopDocuments(const string& raw_query) const {            
         const Query query = ParseQuery(raw_query);
         const auto predicate = [](int document_id, DocumentStatus status, int rating) { return status == DocumentStatus::ACTUAL;};
-        auto matched_documents = FindAllDocuments(query, predicate);
-        
-        sort(matched_documents.begin(), matched_documents.end(),
-             [](const Document& lhs, const Document& rhs) {
-                if (abs(lhs.relevance - rhs.relevance) < ACCURACY) { // избавился от магического числа
-                    return lhs.rating > rhs.rating;
-                } else {
-                    return lhs.relevance > rhs.relevance;
-                }
-             });
-                
-        if (matched_documents.size() > MAX_RESULT_DOCUMENT_COUNT) {
-            matched_documents.resize(MAX_RESULT_DOCUMENT_COUNT);
-        } 
-        
-        return matched_documents;
+        return FindTopDocuments(raw_query, predicate);
     }    
 
     int GetDocumentCount() const {
@@ -233,7 +223,7 @@ private:
     }
 
     template <typename Predicate>
-    vector<Document> FindAllDocuments(const Query& query, Predicate predicate_or_status) const {
+    vector<Document> FindAllDocuments(const Query& query, Predicate predicate) const {
         map<int, double> document_to_relevance;
  
         for (const string& word : query.plus_words) {
@@ -264,21 +254,12 @@ private:
             });
         }
         
-        if (is_same_v<Predicate, DocumentStatus>) {
-            const auto predicate = [predicate_or_status](int document_id, DocumentStatus status, int rating) { return status == predicate_or_status;};
             copy_if(matched_documents.begin(), matched_documents.end(), std::back_inserter(bar), 
                 [predicate, this]
                     (const auto& item) {
                             return (predicate(item.id, documents_.at(item.id).status, item.rating));
-                    });
-        } else {
-            copy_if(matched_documents.begin(), matched_documents.end(), std::back_inserter(bar), 
-                [predicate_or_status, this]
-                    (const auto& item) {
-                            return (predicate_or_status(item.id, documents_.at(item.id).status, item.rating));
                     });   
-        }
-        
+              
                          
         return bar;
     }
@@ -303,7 +284,7 @@ int main() {
     search_server.AddDocument(0, "белый кот и модный ошейник"s,        DocumentStatus::ACTUAL, {8, -3});
     search_server.AddDocument(1, "пушистый кот пушистый хвост"s,       DocumentStatus::ACTUAL, {7, 2, 7});
     search_server.AddDocument(2, "ухоженный пёс выразительные глаза"s, DocumentStatus::ACTUAL, {5, -12, 2, 1});
-    search_server.AddDocument(3, "ухоженный скворец евгений"s,         DocumentStatus::BANNED, {9});
+    search_server.AddDocument(4, "ухоженный скворец евгений"s,         DocumentStatus::BANNED, {9});
 
     cout << "ACTUAL by default:"s << endl;
     for (const Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s)) {
