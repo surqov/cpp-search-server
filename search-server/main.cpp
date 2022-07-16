@@ -82,17 +82,15 @@ public:
             });
     }
 
-    // переписал логику функции, теперь предикат отрабатывает внутрии FindAllDocuments   
+    vector<Document> FindTopDocuments(const string& raw_query, DocumentStatus f_status = DocumentStatus::ACTUAL) const {           
+        return FindTopDocuments(raw_query, [f_status](int document_id, DocumentStatus status, int rating) { return status == f_status;});
+    }
+    
     template <typename Predicate>
-    vector<Document> FindTopDocuments(const string& raw_query, Predicate predicate_or_status) const {            
+    vector<Document> FindTopDocuments(const string& raw_query, Predicate predicate) const {            
         const Query query = ParseQuery(raw_query);
         vector<Document> matched_documents;
-        if constexpr(is_same_v<Predicate, DocumentStatus>) {
-            const auto predicate = [predicate_or_status](int document_id, DocumentStatus status, int rating) { return status == predicate_or_status;};
-            matched_documents = FindAllDocuments(query, predicate);
-        } else {
-            matched_documents = FindAllDocuments(query, predicate_or_status);
-        } 
+        matched_documents = FindAllDocuments(query, predicate);
         
         sort(matched_documents.begin(), matched_documents.end(),
              [](const Document& lhs, const Document& rhs) {
@@ -108,13 +106,6 @@ public:
         }        
                 
         return matched_documents;
-    }
-    
-    // передаем внутрь FindAllDocuments стандартный предикат в случае отсутствия второго вызываемого аргумента 
-    vector<Document> FindTopDocuments(const string& raw_query) const {            
-        const Query query = ParseQuery(raw_query);
-        const auto predicate = [](int document_id, DocumentStatus status, int rating) { return status == DocumentStatus::ACTUAL;};
-        return FindTopDocuments(raw_query, predicate);
     }    
 
     int GetDocumentCount() const {
@@ -217,12 +208,11 @@ private:
         return query;
     }
     
-    // Existence required
     double ComputeWordInverseDocumentFreq(const string& word) const {
         return log(GetDocumentCount() * 1.0 / word_to_document_freqs_.at(word).size());
     }
-
-    template <typename Predicate>
+      
+    template <typename Predicate>  
     vector<Document> FindAllDocuments(const Query& query, Predicate predicate) const {
         map<int, double> document_to_relevance;
  
@@ -254,13 +244,8 @@ private:
             });
         }
         
-            copy_if(matched_documents.begin(), matched_documents.end(), std::back_inserter(bar), 
-                [predicate, this]
-                    (const auto& item) {
-                            return (predicate(item.id, documents_.at(item.id).status, item.rating));
-                    });   
-              
-                         
+        copy_if(matched_documents.begin(), matched_documents.end(), std::back_inserter(bar), [predicate, this](const auto& item) {return (predicate(item.id, documents_.at(item.id).status, item.rating));});   
+  
         return bar;
     }
 };
