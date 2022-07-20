@@ -1,6 +1,7 @@
-#include <algorithm>
-#include <cmath>
 #include <iostream>
+#include <algorithm>
+#include <cassert>
+#include <cmath>
 #include <map>
 #include <set>
 #include <string>
@@ -11,7 +12,7 @@
 using namespace std;
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
-const double ACCURACY = 1e-6; // избавился от магического числа путем вынесения в константу 
+const double ACCURACY = 1e-6;
 
 string ReadLine() {
     string s;
@@ -109,6 +110,15 @@ public:
     int GetDocumentCount() const {
         return documents_.size();
     }
+
+    bool IsThereStopWordInBase() {
+        for (const string& s : stop_words_) {
+            if (word_to_document_freqs_.count(s) > 0) {
+                return false;
+            }
+        }
+    return true;
+}
     
     tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query, int document_id) const {
         const Query query = ParseQuery(raw_query);
@@ -248,10 +258,6 @@ private:
     }
 };
 
-
-// ==================== для примера =========================
-
-
 void PrintDocument(const Document& document) {
     cout << "{ "s
          << "document_id = "s << document.id << ", "s
@@ -260,29 +266,125 @@ void PrintDocument(const Document& document) {
          << " }"s << endl;
 }
 
+// -------- Начало модульных тестов поисковой системы ----------
+
+// Тест проверяет, что поисковая система исключает стоп-слова при добавлении документов
+void TestExcludeStopWordsFromAddedDocumentContent() {
+    const int doc_id = 42;
+    const string content = "cat in the city"s;
+    const vector<int> ratings = {1, 2, 3};
+    // Сначала убеждаемся, что поиск слова, не входящего в список стоп-слов,
+    // находит нужный документ
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        const auto found_docs = server.FindTopDocuments("in"s);
+        assert(found_docs.size() == 1);
+        const Document& doc0 = found_docs[0];
+        assert(doc0.id == doc_id);
+    }
+
+    // Затем убеждаемся, что поиск этого же слова, входящего в список стоп-слов,
+    // возвращает пустой результат
+    {
+        SearchServer server;
+        server.SetStopWords("in the"s);
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        assert(server.FindTopDocuments("in"s).empty());
+    }
+}
+
+//тест на добавление документа
+void TestAddDocument(){
+    const int doc_id1 = 1;
+    const int doc_id2 = 2;
+    const string document1 = "new fresh big orange"s;
+    const string document2 = "nice stifler's mom"s;
+    const string stop_words = "and or if big";
+    const DocumentStatus status = DocumentStatus::ACTUAL;
+    const vector<int> ratings = {-8, 3, 12, 5, 0};
+
+    const string request1 = "fresh and big fish";
+    const string request2 = "mom";
+
+    SearchServer server;
+    server.SetStopWords(stop_words);
+    server.AddDocument(doc_id1, document1, status, ratings);
+    server.AddDocument(doc_id2, document2, status, ratings);
+    auto doc1 = server.FindTopDocuments(request1);
+    auto doc2 = server.FindTopDocuments(request2);
+    assert(doc1[0].id == 1);    
+    assert(doc2[0].id == 2);
+    assert(server.GetDocumentCount() == 2); 
+}
+
+
+//тест на исключение стоп слов
+void TestStopWords(){
+    const int doc_id = 1;
+    const string document = "new and fresh big orange or apple"s;
+    const string stop_words = "and or if big";
+    const DocumentStatus status = DocumentStatus::ACTUAL;
+    const vector<int> ratings = {-8, 3, 12, 5, 0};
+
+    const string request = "fresh and big fish";
+
+    SearchServer server;
+    server.SetStopWords(stop_words);
+    server.AddDocument(doc_id, document, status, ratings);
+    assert(server.IsThereStopWordInBase() == true); 
+}
+
+//документы с минус словами не должны включаться в результаты поиска
+void TestMinusWords(){
+    const int doc_id1 = 1;
+    const int doc_id2 = 2;
+    const int doc_id3 = 3;
+    const string document1 = "new fresh big orange"s;
+    const string document2 = "nice stifler mom"s;
+    const string document3 = "so thats it"s;
+    
+    const string request = "fresh and -big fish";
+
+    SearchServer server;
+    server.AddDocument(doc_id1, document1, DocumentStatus::ACTUAL, {1, 2, 3});
+    server.AddDocument(doc_id2, document2, DocumentStatus::ACTUAL, {3, 4, 5});
+    server.AddDocument(doc_id3, document3, DocumentStatus::ACTUAL, {6, 7, 8});
+    assert(server.FindTopDocuments(request).empty());
+}
+
+//матчинг документов - вернуть все слова из запроса, которые есть в документе
+//если встретилось хоть одно минус слово - тест отвалится
+void TestMatchingDocs(){
+    const int doc_id1 = 1;
+    const int doc_id2 = 2;
+    const int doc_id3 = 3;
+    const string document1 = "new fresh big orange"s;
+    const string document2 = "nice stifler mom"s;
+    const string document3 = "so thats it"s;
+    
+    const string request = "f-big fish";
+
+    SearchServer server;
+    server.AddDocument(doc_id1, document1, DocumentStatus::ACTUAL, {1, 2, 3});
+    server.AddDocument(doc_id2, document2, DocumentStatus::ACTUAL, {3, 4, 5});
+    server.AddDocument(doc_id3, document3, DocumentStatus::ACTUAL, {6, 7, 8});
+    
+}
+
+// Функция TestSearchServer является точкой входа для запуска тестов
+void TestSearchServer() {
+    TestExcludeStopWordsFromAddedDocumentContent();
+    TestAddDocument();
+    TestStopWords();
+    TestMinusWords();
+    TestMatchingDocs();
+}
+
+// --------- Окончание модульных тестов поисковой системы -----------
+
 int main() {
-    SearchServer search_server;
-    search_server.SetStopWords("и в на"s);
-
-    search_server.AddDocument(0, "белый кот и модный ошейник"s,        DocumentStatus::ACTUAL, {8, -3});
-    search_server.AddDocument(1, "пушистый кот пушистый хвост"s,       DocumentStatus::ACTUAL, {7, 2, 7});
-    search_server.AddDocument(2, "ухоженный пёс выразительные глаза"s, DocumentStatus::ACTUAL, {5, -12, 2, 1});
-    search_server.AddDocument(4, "ухоженный скворец евгений"s,         DocumentStatus::BANNED, {9});
-
-    cout << "ACTUAL by default:"s << endl;
-    for (const Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s)) {
-        PrintDocument(document);
-    }
-
-    cout << "BANNED:"s << endl;
-    for (const Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s, DocumentStatus::BANNED)) {
-        PrintDocument(document);
-    }
-
-    cout << "Even ids:"s << endl;
-    for (const Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s, [](int document_id, DocumentStatus status, int rating) { return document_id % 2 == 0; })) {
-        PrintDocument(document);
-    }
-
-    return 0;
-}  
+    TestSearchServer();
+    // Если вы видите эту строку, значит все тесты прошли успешно
+    cout << "Search server testing finished"s << endl;
+}
