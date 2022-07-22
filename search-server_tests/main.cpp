@@ -110,16 +110,7 @@ public:
     int GetDocumentCount() const {
         return documents_.size();
     }
-
-    bool IsThereStopWordInBase() {
-        for (const string& s : stop_words_) {
-            if (word_to_document_freqs_.count(s) > 0) {
-                return false;
-            }
-        }
-    return true;
-}
-    
+   
     tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query, int document_id) const {
         const Query query = ParseQuery(raw_query);
         vector<string> matched_words;
@@ -327,12 +318,12 @@ void TestStopWords(){
     const DocumentStatus status = DocumentStatus::ACTUAL;
     const vector<int> ratings = {-8, 3, 12, 5, 0};
 
-    const string request = "fresh and big fish";
+    const string request = "and or if big";
 
     SearchServer server;
     server.SetStopWords(stop_words);
     server.AddDocument(doc_id, document, status, ratings);
-    assert(server.IsThereStopWordInBase() == true); 
+    assert(server.FindTopDocuments(request).empty()); 
 }
 
 //документы с минус словами не должны включаться в результаты поиска
@@ -357,19 +348,105 @@ void TestMinusWords(){
 //если встретилось хоть одно минус слово - тест отвалится
 void TestMatchingDocs(){
     const int doc_id1 = 1;
+    const string document1 = "new fresh big orange"s;
+    const string stop_words = "and or if big";
+    const string request = "fresh and big fish";
+
+    SearchServer server;
+    server.SetStopWords(stop_words);
+    server.AddDocument(doc_id1, document1, DocumentStatus::ACTUAL, {1, 2, 3});
+
+    vector<string> matched_words = get<0>(server.MatchDocument(document1, doc_id1));
+    for (const string& stop_word : SplitIntoWords(stop_words)) {
+        assert(count(matched_words.begin(), matched_words.end(), stop_word) == 0);
+    }
+}
+
+//документы по убыванию релевантности
+void TestDescendingRelevance(){
+    const int doc_id1 = 1;
     const int doc_id2 = 2;
     const int doc_id3 = 3;
     const string document1 = "new fresh big orange"s;
-    const string document2 = "nice stifler mom"s;
-    const string document3 = "so thats it"s;
+    const string document2 = "tasty fish"s;
+    const string document3 = "big wheel for my car"s;
     
-    const string request = "f-big fish";
+    const string request = "fresh and big fish";
 
     SearchServer server;
     server.AddDocument(doc_id1, document1, DocumentStatus::ACTUAL, {1, 2, 3});
     server.AddDocument(doc_id2, document2, DocumentStatus::ACTUAL, {3, 4, 5});
     server.AddDocument(doc_id3, document3, DocumentStatus::ACTUAL, {6, 7, 8});
+
+    double relevance1, relevance2, relevance3;
+    relevance1 = server.FindTopDocuments(request).at(0).relevance;
+    relevance2 = server.FindTopDocuments(request).at(1).relevance;
+    relevance3 = server.FindTopDocuments(request).at(2).relevance;
+    assert(relevance1 > relevance2 > relevance3);
+}
+
+void TestPredicateFilter(){
+    const int doc_id1 = 1;
+    const int doc_id2 = 2;
+    const int doc_id3 = 3;
+    const string document1 = "new fresh big orange"s;
+    const string document2 = "tasty fish"s;
+    const string document3 = "big wheel for my car"s;
     
+    const string request = "fresh and big fish";
+
+    SearchServer server;
+    server.AddDocument(doc_id1, document1, DocumentStatus::ACTUAL, {1, 2, 3});
+    server.AddDocument(doc_id2, document2, DocumentStatus::ACTUAL, {3, 4, 5});
+    server.AddDocument(doc_id3, document3, DocumentStatus::ACTUAL, {6, 7, 8});
+    auto predicate = [](int document_id, DocumentStatus , int ){ return document_id % 3 == 0;};
+    assert(server.FindTopDocuments(request, predicate).at(0).id == 3);
+}
+
+void TestDocumentsStatus(){
+    const int doc_id1 = 1;
+    const int doc_id2 = 2;
+    const int doc_id3 = 3;
+    const string document1 = "new fresh big orange"s;
+    const string document2 = "tasty fish"s;
+    const string document3 = "big wheel for my car"s;
+    
+    const string request = "fresh and big fish";
+
+    SearchServer server;
+    server.AddDocument(doc_id1, document1, DocumentStatus::ACTUAL, {1, 2, 3});
+    server.AddDocument(doc_id2, document2, DocumentStatus::BANNED, {3, 4, 5});
+    server.AddDocument(doc_id3, document3, DocumentStatus::ACTUAL, {6, 7, 8});
+
+    assert(server.FindTopDocuments(request, DocumentStatus::BANNED).at(0).id == 2);
+}
+
+void TestRelevanceCalc(){
+    const int doc_id1 = 1;
+    const int doc_id2 = 2;
+    const int doc_id3 = 3;
+    const string document1 = "new fresh big orange"s;
+    const string document2 = "tasty fish"s;
+    const string document3 = "big wheel for my car"s;
+    
+    const string request = "fresh and big fish";
+
+    SearchServer server;
+    server.AddDocument(doc_id1, document1, DocumentStatus::ACTUAL, {1, 2, 3});
+    server.AddDocument(doc_id2, document2, DocumentStatus::ACTUAL, {3, 4, 5});
+    server.AddDocument(doc_id3, document3, DocumentStatus::ACTUAL, {6, 7, 8});
+
+    double relevance1, relevance2, relevance3;
+    double ref_relevance1 = 0.549306, 
+            ref_relevance2 = 0.376019, 
+            ref_relevance3 = 0.081093;
+    const double curr_accuracy = 1e-6;
+    relevance1 = server.FindTopDocuments(request).at(0).relevance;
+    relevance2 = server.FindTopDocuments(request).at(1).relevance;
+    relevance3 = server.FindTopDocuments(request).at(2).relevance;
+    assert(abs(relevance1 - ref_relevance1) < curr_accuracy);
+    assert(abs(relevance2 - ref_relevance2) < curr_accuracy);
+    assert(abs(relevance3 - ref_relevance3) < curr_accuracy);
 }
 
 // Функция TestSearchServer является точкой входа для запуска тестов
@@ -379,6 +456,10 @@ void TestSearchServer() {
     TestStopWords();
     TestMinusWords();
     TestMatchingDocs();
+    TestDescendingRelevance();
+    TestPredicateFilter();
+    TestDocumentsStatus(); 
+    TestRelevanceCalc();       
 }
 
 // --------- Окончание модульных тестов поисковой системы -----------
