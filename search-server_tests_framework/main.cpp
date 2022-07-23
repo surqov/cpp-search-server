@@ -11,41 +11,6 @@
 
 using namespace std;
 
-#define RUN_TEST(func) RunTestImpl((func), #func)
-
-template <typename Function>
-void RunTestImpl(const Function& test, const string& test_name) {
-    test();
-    cerr << test_name << " OK"s << endl;
-}
-
-#define ASSERT(expr) AssertImpl((expr), #expr, __FUNCTION__, __FILE__,__LINE__)
-#define ASSERT_HINT(expr, hint) AssertImpl((expr), #expr, __FUNCTION__, __FILE__,__LINE__, hint)
-#define ASSERT_EQUAL(value1, value2) AssertImpl((value1 == value2), #value1, #value2, __FUNCTION__, __FILE__,__LINE__)
-#define ASSERT_EQUAL_HINT(value1, value2, hint) AssertImpl((value1 == value2), #value1, #value2, __FUNCTION__, __FILE__,__LINE__, hint)
-
-void AssertImpl(const bool& value, const string& expr, const string& func_name, const string& file_name, const unsigned& line_number, const string& hint = ""s ){
-    if (!value) {
-        cerr << file_name << "("s << line_number << "): "s << func_name << ": "s << "ASSERT("s << expr << ")"s << " failed."s;
-        if (!hint.empty()) {
-            cerr << " Hint: " << hint;
-        }
-        cerr << endl;
-        abort();
-    }
-}
-
-void AssertImpl(const bool& value, const string& value1, const string& value2, const string& func_name, const string& file_name, const unsigned& line_number, const string& hint = ""s ){
-    if (!value) {
-        cerr << file_name << "("s << line_number << "): "s << func_name << ": "s << "ASSERT("s << value1 << " == "s << value2 << ")"s << " failed."s;
-        if (!hint.empty()) {
-            cerr << " Hint: " << hint;
-        }
-        cerr << endl;
-        abort();
-    }
-}
-
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
 const double ACCURACY = 1e-6;
 
@@ -117,7 +82,7 @@ public:
     }
 
     vector<Document> FindTopDocuments(const string& raw_query, DocumentStatus f_status = DocumentStatus::ACTUAL) const {           
-        return FindTopDocuments(raw_query, [f_status](int , DocumentStatus status, int ) { return status == f_status;});
+        return FindTopDocuments(raw_query, [f_status](int document_id, DocumentStatus status, int rating) { return status == f_status;});
     }
     
     template <typename Predicate>
@@ -305,9 +270,9 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
         SearchServer server;
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
         const auto found_docs = server.FindTopDocuments("in"s);
-        ASSERT_EQUAL(found_docs.size(), 1);
+        assert(found_docs.size() == 1);
         const Document& doc0 = found_docs[0];
-        ASSERT_EQUAL(doc0.id, doc_id);
+        assert(doc0.id == doc_id);
     }
 
     // Затем убеждаемся, что поиск этого же слова, входящего в список стоп-слов,
@@ -316,7 +281,7 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
         SearchServer server;
         server.SetStopWords("in the"s);
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
-        ASSERT(server.FindTopDocuments("in"s).empty());
+        assert(server.FindTopDocuments("in"s).empty());
     }
 }
 
@@ -339,9 +304,9 @@ void TestAddDocument(){
     server.AddDocument(doc_id2, document2, status, ratings);
     auto doc1 = server.FindTopDocuments(request1);
     auto doc2 = server.FindTopDocuments(request2);
-    ASSERT_EQUAL(doc1[0].id, 1);    
-    ASSERT_EQUAL(doc2[0].id, 2);
-    ASSERT_EQUAL(server.GetDocumentCount(), 2); 
+    assert(doc1[0].id == 1);    
+    assert(doc2[0].id == 2);
+    assert(server.GetDocumentCount() == 2); 
 }
 
 
@@ -358,7 +323,7 @@ void TestStopWords(){
     SearchServer server;
     server.SetStopWords(stop_words);
     server.AddDocument(doc_id, document, status, ratings);
-    ASSERT(server.FindTopDocuments(request).empty()); 
+    assert(server.FindTopDocuments(request).empty()); 
 }
 
 //документы с минус словами не должны включаться в результаты поиска
@@ -376,7 +341,7 @@ void TestMinusWords(){
     server.AddDocument(doc_id1, document1, DocumentStatus::ACTUAL, {1, 2, 3});
     server.AddDocument(doc_id2, document2, DocumentStatus::ACTUAL, {3, 4, 5});
     server.AddDocument(doc_id3, document3, DocumentStatus::ACTUAL, {6, 7, 8});
-    ASSERT(server.FindTopDocuments(request).empty());
+    assert(server.FindTopDocuments(request).empty());
 }
 
 //матчинг документов - вернуть все слова из запроса, которые есть в документе
@@ -393,7 +358,7 @@ void TestMatchingDocs(){
 
     vector<string> matched_words = get<0>(server.MatchDocument(document1, doc_id1));
     for (const string& stop_word : SplitIntoWords(stop_words)) {
-        ASSERT_EQUAL(count(matched_words.begin(), matched_words.end(), stop_word), 0);
+        assert(count(matched_words.begin(), matched_words.end(), stop_word) == 0);
     }
 }
 
@@ -417,7 +382,7 @@ void TestDescendingRelevance(){
     relevance1 = server.FindTopDocuments(request).at(0).relevance;
     relevance2 = server.FindTopDocuments(request).at(1).relevance;
     relevance3 = server.FindTopDocuments(request).at(2).relevance;
-    ASSERT((relevance1 > relevance2) && (relevance2 > relevance3));
+    assert((relevance1 > relevance2) && (relevance2 > relevance3));
 }
 
 void TestPredicateFilter(){
@@ -435,7 +400,7 @@ void TestPredicateFilter(){
     server.AddDocument(doc_id2, document2, DocumentStatus::ACTUAL, {3, 4, 5});
     server.AddDocument(doc_id3, document3, DocumentStatus::ACTUAL, {6, 7, 8});
     auto predicate = [](int document_id, DocumentStatus , int ){ return document_id % 3 == 0;};
-    ASSERT_EQUAL(server.FindTopDocuments(request, predicate).at(0).id, 3);
+    assert(server.FindTopDocuments(request, predicate).at(0).id == 3);
 }
 
 void TestDocumentsStatus(){
@@ -453,7 +418,7 @@ void TestDocumentsStatus(){
     server.AddDocument(doc_id2, document2, DocumentStatus::BANNED, {3, 4, 5});
     server.AddDocument(doc_id3, document3, DocumentStatus::ACTUAL, {6, 7, 8});
 
-    ASSERT_EQUAL(server.FindTopDocuments(request, DocumentStatus::BANNED).at(0).id, 2);
+    assert(server.FindTopDocuments(request, DocumentStatus::BANNED).at(0).id == 2);
 }
 
 void TestRelevanceCalc(){
@@ -479,24 +444,22 @@ void TestRelevanceCalc(){
     relevance1 = server.FindTopDocuments(request).at(0).relevance;
     relevance2 = server.FindTopDocuments(request).at(1).relevance;
     relevance3 = server.FindTopDocuments(request).at(2).relevance;
-    ASSERT(abs(relevance1 - ref_relevance1) < curr_accuracy);
-    ASSERT(abs(relevance2 - ref_relevance2) < curr_accuracy);
-    ASSERT(abs(relevance3 - ref_relevance3) < curr_accuracy);
+    assert(abs(relevance1 - ref_relevance1) < curr_accuracy);
+    assert(abs(relevance2 - ref_relevance2) < curr_accuracy);
+    assert(abs(relevance3 - ref_relevance3) < curr_accuracy);
 }
-
-
 
 // Функция TestSearchServer является точкой входа для запуска тестов
 void TestSearchServer() {
     TestExcludeStopWordsFromAddedDocumentContent();
     TestAddDocument();
-    TestStopWords();   
-    TestMinusWords();  
+    TestStopWords();
+    TestMinusWords();
     TestMatchingDocs();
     TestDescendingRelevance();
     TestPredicateFilter();
-    TestDocumentsStatus();
-    TestRelevanceCalc();          
+    TestDocumentsStatus(); 
+    TestRelevanceCalc();       
 }
 
 // --------- Окончание модульных тестов поисковой системы -----------
