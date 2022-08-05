@@ -391,21 +391,24 @@ void TestAddMinusWords(){
 //поверяем корректность слов в списке
 void TestMatchingDocs(){
     const int doc_id1 = 1;
+    const int doc_id2 = 2;
     const string document1 = "new and fresh big apple"s;
+    const string document2 = "new and fresh big fish"s;
     const string stop_words = "and or if big"s;
     const string request = "fresh and nice big -fish"s;
 
     SearchServer server;
     server.SetStopWords(stop_words);
     server.AddDocument(doc_id1, document1, DocumentStatus::ACTUAL, {1, 2, 3});
+    server.AddDocument(doc_id2, document2, DocumentStatus::ACTUAL, {1, 3, 2});
 
     auto [matched_words, status]= server.MatchDocument(document1, doc_id1);
     for (const string& stop_word : SplitIntoWords(stop_words)) {
         ASSERT_EQUAL(count(matched_words.begin(), matched_words.end(), stop_word), 0);
     }
 
-    for (const string& minus_word : server.GetMinusWordsFromLine(request)) {
-        ASSERT_EQUAL(count(matched_words.begin(), matched_words.end(), minus_word), 0);
+    for (const auto& item : server.FindTopDocuments(request)) {
+        ASSERT(item.id != doc_id2);
     }
 
     vector<string> ref_matched_words = {"apple"s, "fresh"s, "new"s};
@@ -530,7 +533,7 @@ void TestCalcDocumentRating(){
 
     SearchServer server;
     server.AddDocument(doc_id1, document1, DocumentStatus::ACTUAL, rating);
-    const double ref_rating = accumulate(rating.begin(), rating.end(), 0.0) / rating.size();
+    const double ref_rating = (1 + 3 + 2) * 1.0 / 3;
     ASSERT_EQUAL(server.FindTopDocuments(request).at(0).rating, ref_rating);
 }   
 
