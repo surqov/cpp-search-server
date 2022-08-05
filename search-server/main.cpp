@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 #include <stdexcept>
+#include <numeric>
 
 using namespace std;
 
@@ -119,12 +120,7 @@ public:
 
     template <typename DocumentPredicate>
     vector<Document> FindTopDocuments(const string& raw_query, DocumentPredicate document_predicate) const {
-        for (const string& word : SplitIntoWords(raw_query)) {
-            if (!IsValidWord(word) || IsDoubleMinusAtBeginning(word) || IsNothingAfterHypen(word)) {
-                throw invalid_argument("Incorrect word in request");
-            }
-        }     
-        
+        ValidateWordsAndPass(raw_query); 
         const Query query = ParseQuery(raw_query);
         auto matched_documents = FindAllDocuments(query, document_predicate);
 
@@ -171,11 +167,7 @@ public:
     }
 
     tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query, int document_id) const {
-        for (const string& word : SplitIntoWords(raw_query)) {
-            if (!IsValidWord(word) || IsDoubleMinusAtBeginning(word) || IsNothingAfterHypen(word)) {
-                throw invalid_argument("Incorrect word in request");
-            }
-        }        
+        ValidateWordsAndPass(raw_query);
         const Query query = ParseQuery(raw_query);
         vector<string> matched_words;
         for (const string& word : query.plus_words) {
@@ -226,7 +218,13 @@ private:
         return word == "-"s;
     }
     
-    
+    void ValidateWordsAndPass(const string& text) const {
+        for (const string& word : SplitIntoWords(text)) {
+            if (!IsValidWord(word) || IsDoubleMinusAtBeginning(word) || IsNothingAfterHypen(word)) {
+                throw invalid_argument("Incorrect word in request");
+            }
+        }
+    }
     
     bool IsStopWord(const string& word) const {
         return stop_words_.count(word) > 0;
@@ -246,17 +244,16 @@ private:
         if (ratings.empty()) {
             return 0;
         }
-        int rating_sum = 0;
-        for (const int rating : ratings) {
-            rating_sum += rating;
-        }
+        int rating_sum = accumulate(ratings.begin(), ratings.end(), 0); // завернул в accumulate
         return rating_sum / static_cast<int>(ratings.size());
     }
 
     struct QueryWord {
-        string data;
-        bool is_minus;
-        bool is_stop;
+        QueryWord() = default;
+
+        string data = ""s;
+        bool is_minus = false;
+        bool is_stop = false;
     };
 
     QueryWord ParseQueryWord(string text) const {
