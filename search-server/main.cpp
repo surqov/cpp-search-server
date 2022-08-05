@@ -170,11 +170,7 @@ public:
         }
         return {matched_words, documents_.at(document_id).status};
     }
-    
-    set<string> GetMinusWordsFromLine(const string& text) {
-        return ParseQuery(text).minus_words;
-    }
-    
+   
 private:
     struct DocumentData {
         int rating;
@@ -575,7 +571,7 @@ int main() {
         PrintDocument(document);
     }
     cout << "Even ids:"s << endl;
-    for (const Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s, [](int document_id, DocumentStatus status, int rating) { return document_id % 2 == 0; })) {
+    for (const Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s, [](int document_id, DocumentStatus , int ) { return document_id % 2 == 0; })) {
         PrintDocument(document);
     }
 }
