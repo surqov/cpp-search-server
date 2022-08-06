@@ -120,7 +120,6 @@ public:
 
     template <typename DocumentPredicate>
     vector<Document> FindTopDocuments(const string& raw_query, DocumentPredicate document_predicate) const {
-        ValidateWordsAndPass(raw_query); 
         const Query query = ParseQuery(raw_query);
         auto matched_documents = FindAllDocuments(query, document_predicate);
 
@@ -167,7 +166,6 @@ public:
     }
 
     tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query, int document_id) const {
-        ValidateWordsAndPass(raw_query);
         const Query query = ParseQuery(raw_query);
         vector<string> matched_words;
         for (const string& word : query.plus_words) {
@@ -218,14 +216,6 @@ private:
         return word == "-"s;
     }
     
-    void ValidateWordsAndPass(const string& text) const {
-        for (const string& word : SplitIntoWords(text)) {
-            if (!IsValidWord(word) || IsDoubleMinusAtBeginning(word) || IsNothingAfterHypen(word)) {
-                throw invalid_argument("Incorrect word in request");
-            }
-        }
-    }
-    
     bool IsStopWord(const string& word) const {
         return stop_words_.count(word) > 0;
     }
@@ -274,6 +264,9 @@ private:
     Query ParseQuery(const string& text) const {
         Query query;
         for (const string& word : SplitIntoWords(text)) {
+            if (!IsValidWord(word) || IsDoubleMinusAtBeginning(word) || IsNothingAfterHypen(word)) {
+                throw invalid_argument("Incorrect word in request");
+            }
             const QueryWord query_word = ParseQueryWord(word);
             if (!query_word.is_stop) {
                 if (query_word.is_minus) {
