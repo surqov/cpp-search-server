@@ -1,19 +1,20 @@
+// search_server_s4_t2_solution.cpp
+
 #include <algorithm>
 #include <cmath>
-#include <ctype.h>
 #include <iostream>
 #include <map>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
-#include <stdexcept>
+#include <stack>
 #include <numeric>
 
 using namespace std;
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
-const double ACCURACY = 1e-6;
 
 string ReadLine() {
     string s;
@@ -44,6 +45,7 @@ vector<string> SplitIntoWords(const string& text) {
     if (!word.empty()) {
         words.push_back(word);
     }
+
     return words;
 }
 
@@ -60,6 +62,14 @@ struct Document {
     double relevance = 0.0;
     int rating = 0;
 };
+
+ostream& operator<<(ostream& out, const Document& document) {
+    out << "{ "s
+        << "document_id = "s << document.id << ", "s
+        << "relevance = "s << document.relevance << ", "s
+        << "rating = "s << document.rating << " }"s;
+    return out;
+}
 
 template <typename StringContainer>
 set<string> MakeUniqueNonEmptyStrings(const StringContainer& strings) {
@@ -81,50 +91,43 @@ enum class DocumentStatus {
 
 class SearchServer {
 public:
-    inline static constexpr int INVALID_DOCUMENT_ID = -1;
-    
     template <typename StringContainer>
-    explicit SearchServer(const StringContainer& stop_words) : stop_words_(MakeUniqueNonEmptyStrings(stop_words))
+    explicit SearchServer(const StringContainer& stop_words)
+        : stop_words_(MakeUniqueNonEmptyStrings(stop_words))  // Extract non-empty stop words
     {
-        if (!all_of(stop_words.begin(), stop_words.end(), [](string word){return IsValidWord(word);})) {
-            throw invalid_argument("Incorrect stop word");
+        if (!all_of(stop_words_.begin(), stop_words_.end(), IsValidWord)) {
+            throw invalid_argument("Some of stop words are invalid"s);
         }
     }
 
     explicit SearchServer(const string& stop_words_text)
-        : SearchServer(SplitIntoWords(stop_words_text))  // Invoke delegating constructor from string container
+        : SearchServer(SplitIntoWords(stop_words_text))  // Invoke delegating constructor
+                                                         // from string container
     {
     }
 
     void AddDocument(int document_id, const string& document, DocumentStatus status, const vector<int>& ratings) {
-        if (document_id < 0) {
-            throw invalid_argument("Negative ID is forbidden");
+        if ((document_id < 0) || (documents_.count(document_id) > 0)) {
+            throw invalid_argument("Invalid document_id"s);
         }
-        const vector<string> words = SplitIntoWordsNoStop(document);
-        for (const string& word : words) {
-            if (!IsValidWord(word) || IsDoubleMinusAtBeginning(word)) {
-                throw invalid_argument("Incorrect word in document");
-            }
-        }  
-        
-        if (documents_.count(document_id) > 0) {
-            throw invalid_argument("Same ID is already in base");
-        }
-     
+        const auto words = SplitIntoWordsNoStop(document);
+
         const double inv_word_count = 1.0 / words.size();
         for (const string& word : words) {
             word_to_document_freqs_[word][document_id] += inv_word_count;
         }
         documents_.emplace(document_id, DocumentData{ComputeAverageRating(ratings), status});
+        document_ids_.push_back(document_id);
     }
 
     template <typename DocumentPredicate>
     vector<Document> FindTopDocuments(const string& raw_query, DocumentPredicate document_predicate) const {
-        const Query query = ParseQuery(raw_query);
+        const auto query = ParseQuery(raw_query);
+
         auto matched_documents = FindAllDocuments(query, document_predicate);
 
         sort(matched_documents.begin(), matched_documents.end(), [](const Document& lhs, const Document& rhs) {
-            if (abs(lhs.relevance - rhs.relevance) < ACCURACY) {
+            if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
                 return lhs.rating > rhs.rating;
             } else {
                 return lhs.relevance > rhs.relevance;
@@ -137,9 +140,10 @@ public:
         return matched_documents;
     }
 
-    vector<Document> FindTopDocuments(const string& raw_query, DocumentStatus status) const {        
-        return FindTopDocuments(raw_query, [status](int , DocumentStatus document_status, int ) {
-            return document_status == status;});
+    vector<Document> FindTopDocuments(const string& raw_query, DocumentStatus status) const {
+        return FindTopDocuments(raw_query, [status](int, DocumentStatus document_status, int) {
+            return document_status == status;
+        });
     }
 
     vector<Document> FindTopDocuments(const string& raw_query) const {
@@ -149,24 +153,14 @@ public:
     int GetDocumentCount() const {
         return documents_.size();
     }
-    
+
     int GetDocumentId(int index) const {
-        if (index >= static_cast<int>(documents_.size()) || index < 0) {
-            throw out_of_range("Out of range");
-        }
-        
-        int i = 0;
-        for (const auto& item : documents_) {
-            if (i == index) {
-                return item.first;
-            }
-            ++i;
-        }
-    return 0;
+        return document_ids_.at(index);
     }
 
     tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query, int document_id) const {
-        const Query query = ParseQuery(raw_query);
+        const auto query = ParseQuery(raw_query);
+
         vector<string> matched_words;
         for (const string& word : query.plus_words) {
             if (word_to_document_freqs_.count(word) == 0) {
@@ -185,8 +179,7 @@ public:
                 break;
             }
         }
-
-        return make_tuple(matched_words, documents_.at(document_id).status);
+        return {matched_words, documents_.at(document_id).status};
     }
 
 private:
@@ -197,32 +190,25 @@ private:
     const set<string> stop_words_;
     map<string, map<int, double>> word_to_document_freqs_;
     map<int, DocumentData> documents_;
+    vector<int> document_ids_;
+
+    bool IsStopWord(const string& word) const {
+        return stop_words_.count(word) > 0;
+    }
 
     static bool IsValidWord(const string& word) {
+        // A valid word must not contain special characters
         return none_of(word.begin(), word.end(), [](char c) {
             return c >= '\0' && c < ' ';
         });
     }
 
-    static bool IsMinusWord(const string& word) {
-        return word.size() > 1 && word[0] == '-';
-    }
-    
-    static bool IsDoubleMinusAtBeginning(const string& word) {
-        return word.size() > 1 && word[0] == '-' && word[1] == '-';
-    }
-
-    static bool IsNothingAfterHypen(const string& word) {
-        return word == "-"s;
-    }
-    
-    bool IsStopWord(const string& word) const {
-        return stop_words_.count(word) > 0;
-    }
-
     vector<string> SplitIntoWordsNoStop(const string& text) const {
         vector<string> words;
         for (const string& word : SplitIntoWords(text)) {
+            if (!IsValidWord(word)) {
+                throw invalid_argument("Word "s + word + " is invalid"s);
+            }
             if (!IsStopWord(word)) {
                 words.push_back(word);
             }
@@ -234,26 +220,34 @@ private:
         if (ratings.empty()) {
             return 0;
         }
-        int rating_sum = accumulate(ratings.begin(), ratings.end(), 0); // завернул в accumulate
+        int rating_sum = 0;
+        for (const int rating : ratings) {
+            rating_sum += rating;
+        }
         return rating_sum / static_cast<int>(ratings.size());
     }
 
     struct QueryWord {
-        QueryWord() = default;
-
-        string data = ""s;
-        bool is_minus = false;
-        bool is_stop = false;
+        string data;
+        bool is_minus;
+        bool is_stop;
     };
 
-    QueryWord ParseQueryWord(string text) const {
-        bool is_minus = false;
-        // Word shouldn't be empty
-        if (text[0] == '-') {
-            is_minus = true;
-            text = text.substr(1);
+    QueryWord ParseQueryWord(const string& text) const {
+        if (text.empty()) {
+            throw invalid_argument("Query word is empty"s);
         }
-        return {text, is_minus, IsStopWord(text)};
+        string word = text;
+        bool is_minus = false;
+        if (word[0] == '-') {
+            is_minus = true;
+            word = word.substr(1);
+        }
+        if (word.empty() || word[0] == '-' || !IsValidWord(word)) {
+            throw invalid_argument("Query word "s + text + " is invalid");
+        }
+
+        return {word, is_minus, IsStopWord(word)};
     }
 
     struct Query {
@@ -262,21 +256,18 @@ private:
     };
 
     Query ParseQuery(const string& text) const {
-        Query query;
+        Query result;
         for (const string& word : SplitIntoWords(text)) {
-            if (!IsValidWord(word) || IsDoubleMinusAtBeginning(word) || IsNothingAfterHypen(word)) {
-                throw invalid_argument("Incorrect word in request");
-            }
-            const QueryWord query_word = ParseQueryWord(word);
+            const auto query_word = ParseQueryWord(word);
             if (!query_word.is_stop) {
                 if (query_word.is_minus) {
-                    query.minus_words.insert(query_word.data);
+                    result.minus_words.insert(query_word.data);
                 } else {
-                    query.plus_words.insert(query_word.data);
+                    result.plus_words.insert(query_word.data);
                 }
             }
         }
-        return query;
+        return result;
     }
 
     // Existence required
@@ -317,8 +308,6 @@ private:
     }
 };
 
-// ------------ Пример использования ----------------
-
 void PrintDocument(const Document& document) {
     cout << "{ "s
          << "document_id = "s << document.id << ", "s
@@ -341,7 +330,7 @@ void AddDocument(SearchServer& search_server, int document_id, const string& doc
                  const vector<int>& ratings) {
     try {
         search_server.AddDocument(document_id, document, status, ratings);
-    } catch (const exception& e) {
+    } catch (const invalid_argument& e) {
         cout << "Ошибка добавления документа "s << document_id << ": "s << e.what() << endl;
     }
 }
@@ -352,7 +341,7 @@ void FindTopDocuments(const SearchServer& search_server, const string& raw_query
         for (const Document& document : search_server.FindTopDocuments(raw_query)) {
             PrintDocument(document);
         }
-    } catch (const exception& e) {
+    } catch (const invalid_argument& e) {
         cout << "Ошибка поиска: "s << e.what() << endl;
     }
 }
@@ -366,26 +355,140 @@ void MatchDocuments(const SearchServer& search_server, const string& query) {
             const auto [words, status] = search_server.MatchDocument(query, document_id);
             PrintMatchDocumentResult(document_id, words, status);
         }
-    } catch (const exception& e) {
+    } catch (const invalid_argument& e) {
         cout << "Ошибка матчинга документов на запрос "s << query << ": "s << e.what() << endl;
     }
 }
 
-int main() {
-    SearchServer search_server("и в на"s);
+template <typename Iterator>
+class IteratorRange {
+public:
+    IteratorRange(Iterator begin, Iterator end)
+        : first_(begin)
+        , last_(end)
+        , size_(distance(first_, last_)) {
+    }
 
-    AddDocument(search_server, 1, "пушистый кот пушистый хвост"s, DocumentStatus::ACTUAL, {7, 2, 7});
-    AddDocument(search_server, 1, "пушистый пёс и модный ошейник"s, DocumentStatus::ACTUAL, {1, 2});
-    AddDocument(search_server, -1, "пушистый пёс и модный ошейник"s, DocumentStatus::ACTUAL, {1, 2});
-    AddDocument(search_server, 3, "большой пёс скво\x12рец евгений"s, DocumentStatus::ACTUAL, {1, 3, 2});
-    AddDocument(search_server, 4, "большой пёс скворец евгений"s, DocumentStatus::ACTUAL, {1, 1, 1});
+    Iterator begin() const {
+        return first_;
+    }
 
-    FindTopDocuments(search_server, "пушистый -пёс"s);
-    FindTopDocuments(search_server, "пушистый --кот"s);
-    FindTopDocuments(search_server, "пушистый -"s);
+    Iterator end() const {
+        return last_;
+    }
 
-    MatchDocuments(search_server, "пушистый пёс"s);
-    MatchDocuments(search_server, "модный -кот"s);
-    MatchDocuments(search_server, "модный --пёс"s);
-    MatchDocuments(search_server, "пушистый - хвост"s);
+    size_t size() const {
+        return size_;
+    }
+
+private:
+    Iterator first_, last_;
+    size_t size_;
+};
+
+template <typename Iterator>
+ostream& operator<<(ostream& out, const IteratorRange<Iterator>& range) {
+    for (Iterator it = range.begin(); it != range.end(); ++it) {
+        out << *it;
+    }
+    return out;
 }
+
+template <typename Iterator>
+class Paginator {
+public:
+    Paginator(Iterator begin, Iterator end, size_t page_size) {
+        for (size_t left = distance(begin, end); left > 0;) {
+            const size_t current_page_size = min(page_size, left);
+            const Iterator current_page_end = next(begin, current_page_size);
+            pages_.push_back({begin, current_page_end});
+
+            left -= current_page_size;
+            begin = current_page_end;
+        }
+    }
+
+    auto begin() const {
+        return pages_.begin();
+    }
+
+    auto end() const {
+        return pages_.end();
+    }
+
+    size_t size() const {
+        return pages_.size();
+    }
+
+private:
+    vector<IteratorRange<Iterator>> pages_;
+};
+
+template <typename Container>
+auto Paginate(const Container& c, size_t page_size) {
+    return Paginator(begin(c), end(c), page_size);
+}
+
+class RequestQueue {
+public:
+    explicit RequestQueue(const SearchServer& search_server) : search_server_(search_server){}
+    // сделаем "обёртки" для всех методов поиска, чтобы сохранять результаты для нашей статистики
+    template <typename DocumentPredicate>
+    vector<Document> AddFindRequest(const string& raw_query, DocumentPredicate document_predicate) {
+        if (fooled_ || requests_.size() >= min_in_day_) {
+            requests_.pop_front();
+            fooled_ = true;
+        }
+        vector<Document> result = search_server_.FindTopDocuments(raw_query, document_predicate);
+        requests_.push_back({raw_query, !result.empty()});
+        return result;
+    }
+
+    vector<Document> AddFindRequest(const string& raw_query, DocumentStatus status) {
+        return AddFindRequest(raw_query, [status](int, DocumentStatus document_status, int) {
+            return document_status == status;
+        });
+    }
+
+    vector<Document> AddFindRequest(const string& raw_query) {
+        return AddFindRequest(raw_query, DocumentStatus::ACTUAL);
+    }
+
+    int GetNoResultRequests() const {
+        return count_if(requests_.begin(), requests_.end(), [](const auto item){return item.founded == false;});
+    }
+private:
+    struct QueryResult {
+        QueryResult() = default;
+        const string request;
+        bool founded;
+    };
+    deque<QueryResult> requests_;
+    const static int min_in_day_ = 1440;
+    const SearchServer& search_server_;
+    bool fooled_ = false;
+}; 
+
+int main() {
+    SearchServer search_server("and in at"s);
+    RequestQueue request_queue(search_server);
+
+    search_server.AddDocument(1, "curly cat curly tail"s, DocumentStatus::ACTUAL, {7, 2, 7});
+    search_server.AddDocument(2, "curly dog and fancy collar"s, DocumentStatus::ACTUAL, {1, 2, 3});
+    search_server.AddDocument(3, "big cat fancy collar "s, DocumentStatus::ACTUAL, {1, 2, 8});
+    search_server.AddDocument(4, "big dog sparrow Eugene"s, DocumentStatus::ACTUAL, {1, 3, 2});
+    search_server.AddDocument(5, "big dog sparrow Vasiliy"s, DocumentStatus::ACTUAL, {1, 1, 1});
+
+    // 1439 запросов с нулевым результатом
+    for (int i = 0; i < 1439; ++i) {
+        request_queue.AddFindRequest("empty request"s);
+    }
+    // все еще 1439 запросов с нулевым результатом
+    request_queue.AddFindRequest("curly dog"s);
+    // новые сутки, первый запрос удален, 1438 запросов с нулевым результатом
+    request_queue.AddFindRequest("big collar"s);
+    // первый запрос удален, 1437 запросов с нулевым результатом
+    request_queue.AddFindRequest("sparrow"s);
+    cout << "Total empty requests: "s << request_queue.GetNoResultRequests() << endl;
+    return 0;
+} 
