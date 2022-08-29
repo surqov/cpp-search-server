@@ -1,11 +1,13 @@
-#include "read_input_functions.h"
-#include "string_processing.h"
 #include "document.h"
-#include "search_server.h"
 #include "paginator.h"
+#include "read_input_functions.h"
 #include "request_queue.h"
+#include "search_server.h"
+#include "string_processing.h"
 
 using namespace std;
+
+
 
 int main() {
     SearchServer search_server("and in at"s);
