@@ -37,7 +37,7 @@ SearchServer(const StringContainer& stop_words);
 
 private:
     struct DocumentData {
-        int rating;
+        int rating = 0;
         DocumentStatus status;
     };
     const std::set<std::string> stop_words_;
@@ -90,9 +90,7 @@ std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_quer
             sort(matched_documents.begin(), matched_documents.end(), [](const Document& lhs, const Document& rhs) {
                 if (std::abs(lhs.relevance - rhs.relevance) < 1e-6) {
                     return lhs.rating > rhs.rating;
-                } else {
-                    return lhs.relevance > rhs.relevance;
-                }
+                } 
             });
             if (matched_documents.size() > MAX_RESULT_DOCUMENT_COUNT) {
                 matched_documents.resize(MAX_RESULT_DOCUMENT_COUNT);
