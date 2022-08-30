@@ -9,7 +9,12 @@
                 "-g",
                 "${file}",
                 "-o",
-                "${fileDirname}/${fileBasenameNoExtension}"
+                "${fileDirname}/${fileBasenameNoExtension}",
+                "-std=c++17",
+                "-Wall", 
+                "-Wextra", 
+                "-pedantic", 
+                "-Werror"
             ],
             "options": {
                 "cwd": "${fileDirname}"
@@ -21,6 +26,31 @@
                 "kind": "build",
                 "isDefault": true
             },
+            "detail": "Задача создана отладчиком."
+        },
+        {
+            "type": "cppbuild",
+            "label": "C/C++: g++ сборка активного файла",
+            "command": "/usr/bin/g++",
+            "args": [
+                "-fdiagnostics-color=always",
+                "-g",
+                "${file}",
+                "-o",
+                "${fileDirname}/${fileBasenameNoExtension}",
+                "-std=c++17",
+                "-Wall", 
+                "-Wextra", 
+                "-pedantic",
+                "-Werror"
+            ],
+            "options": {
+                "cwd": "${fileDirname}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": "build",
             "detail": "Задача создана отладчиком."
         }
     ],

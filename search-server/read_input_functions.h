@@ -3,8 +3,6 @@
 #include <string>
 #include <vector>
 
-using namespace std;
-
-string ReadLine();
+std::string ReadLine();
 
 int ReadLineWithNumber();

@@ -3,7 +3,7 @@
 #include <vector>
 #include <string>
 
-using namespace std;
+using namespace std::literals;
 
 struct Document {
     Document() = default;
@@ -19,7 +19,7 @@ struct Document {
     int rating = 0;
 };
 
-ostream& operator<<(ostream& out, const Document& document);
+std::ostream& operator<<(std::ostream& out, const Document& document);
 
 enum class DocumentStatus {
     ACTUAL,
@@ -30,4 +30,4 @@ enum class DocumentStatus {
 
 void PrintDocument(const Document& document);
 
-void PrintMatchDocumentResult(int document_id, const vector<string>& words, DocumentStatus status);
+void PrintMatchDocumentResult(int document_id, const std::vector<std::string>& words, DocumentStatus status);
