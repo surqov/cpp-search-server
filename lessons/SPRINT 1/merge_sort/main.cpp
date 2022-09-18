@@ -7,13 +7,13 @@ using namespace std;
 
 template <typename RandomIt>
 void MergeSort(RandomIt begin, RandomIt end) {
-    int dist = distance(begin, end);
-    cout << dist << endl;
-    auto mid = begin + (dist) / 2;
-    cout << *mid;
-    MergeSort(begin, mid);
-    MergeSort(mid, end);
-    merge(begin, mid, mid + 1, end, begin);
+    int dist = distance(begin, end-1);
+    if (begin != end) {
+        auto mid = begin + dist / 2;
+        MergeSort(begin, mid);
+        MergeSort(mid, end);
+        inplace_merge(begin, mid, end);
+    }
 }
 
 template <typename RandomIt>
@@ -25,15 +25,15 @@ void PrintRange(RandomIt range_begin, RandomIt range_end) {
 }
 
 int main() {
-    vector<int> test_vector = {15, 3, 7, 5, 6};
+    vector<int> test_vector = {3, 7, 5, 6};
 
     // iota             -> http://ru.cppreference.com/w/cpp/algorithm/iota
     // Заполняет диапазон последовательно возрастающими значениями
-    //iota(test_vector.begin(), test_vector.end(), 1);
+    // iota(test_vector.begin(), test_vector.end(), 1);
 
     // random_shuffle   -> https://ru.cppreference.com/w/cpp/algorithm/random_shuffle
     // Перемешивает элементы в случайном порядке
-    //random_shuffle(test_vector.begin(), test_vector.end());
+    // shuffle(test_vector.begin(), test_vector.end());
 
     // Выводим вектор до сортировки
     PrintRange(test_vector.begin(), test_vector.end());
