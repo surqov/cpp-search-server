@@ -1,4 +1,5 @@
 #pragma once
+#include "log_duration.h"
 #include "string_processing.h"
 #include "document.h"
 #include <algorithm>
