@@ -14,8 +14,8 @@ void SearchServer::AddDocument(int document_id, const std::string& document, Doc
         }
         documents_.emplace(document_id, DocumentData{ComputeAverageRating(ratings), status});
         document_ids_.push_back(document_id);
-}
-
+}  
+    
 std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_query, DocumentStatus status) const {
     return FindTopDocuments(raw_query, [status](int, DocumentStatus document_status, int) {
         return document_status == status;
@@ -28,10 +28,6 @@ std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_quer
 
 int SearchServer::GetDocumentCount() const {
         return documents_.size();
-}
-
-int SearchServer::GetDocumentId(int index) const {
-        return document_ids_.at(index);
 }
 
 std::tuple<std::vector<std::string>, DocumentStatus> SearchServer::MatchDocument(const std::string& raw_query, int document_id) const {
@@ -149,16 +145,33 @@ void FindTopDocuments(const SearchServer& search_server, const std::string& raw_
     }
 }
 
-void MatchDocuments(const SearchServer& search_server, const std::string& query) {
+void MatchDocuments(SearchServer& search_server, const std::string& query) {
     try {
         std::cout << "Матчинг документов по запросу: "s << query << std::endl;
-        const int document_count = search_server.GetDocumentCount();
-        for (int index = 0; index < document_count; ++index) {
-            const int document_id = search_server.GetDocumentId(index);
+        for (const int document_id : search_server) {
             const auto [words, status] = search_server.MatchDocument(query, document_id);
             PrintMatchDocumentResult(document_id, words, status);
         }
     } catch (const std::invalid_argument& e) {
         std::cout << "Ошибка матчинга документов на запрос "s << query << ": "s << e.what() << std::endl;
     }
+}
+
+void SearchServer::RemoveDocument(int document_id) {
+    document_ids_.erase(find(document_ids_.begin(), document_ids_.end(), document_id));//
+    documents_.erase(document_id);
+    for (auto [w, freq_data] : word_to_document_freqs_) {
+            freq_data.erase(document_id);
+    }
+}
+
+const std::map<std::string, double> SearchServer::GetWordFrequencies(int document_id) const {
+    std::map<std::string, double> result;
+    for (const auto item : word_to_document_freqs_) {
+        if (item.second.count(document_id) != 0) {
+            double freq = item.second.at(document_id);
+            result.insert({item.first, freq});
+        }
+    }
+    return result;
 }

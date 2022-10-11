@@ -1,5 +1,4 @@
 #pragma once
-#include "log_duration.h"
 #include "string_processing.h"
 #include "document.h"
 #include <algorithm>
@@ -13,6 +12,7 @@
 #include <numeric>
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
+const double ACCURACY = 1e-6;
 
 class SearchServer {
 public:
@@ -24,18 +24,44 @@ SearchServer(const StringContainer& stop_words);
     void AddDocument(int document_id, const std::string& document, DocumentStatus status, const std::vector<int>& ratings);
 
     template <typename DocumentPredicate>
-    std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentPredicate document_predicate) const;
+    std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentPredicate document_predicate) const {
+        const auto query = ParseQuery(raw_query);
+        auto matched_documents = FindAllDocuments(query, document_predicate);
+
+        std::sort(matched_documents.begin(), matched_documents.end(), [](const Document& lhs, const Document& rhs) {
+            if (std::abs(lhs.relevance - rhs.relevance) < ACCURACY) {
+                return lhs.rating > rhs.rating;
+            } else {
+                return lhs.relevance > rhs.relevance;
+            }
+        });
+        if (matched_documents.size() > MAX_RESULT_DOCUMENT_COUNT) {
+            matched_documents.resize(MAX_RESULT_DOCUMENT_COUNT);
+        }
+
+        return matched_documents;
+    } 
 
     std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentStatus status) const;
 
     std::vector<Document> FindTopDocuments(const std::string& raw_query) const;
 
     int GetDocumentCount() const;
+    
+auto begin() const{
+    return document_ids_.begin();
+}
 
-    int GetDocumentId(int index) const;
+auto end() const {
+    return document_ids_.end();
+}
 
     std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(const std::string& raw_query, int document_id) const;
 
+void RemoveDocument(int document_id);
+    
+const std::map<std::string, double> GetWordFrequencies(int document_id) const;
+    
 private:
     struct DocumentData {
         int rating = 0;
@@ -80,24 +106,6 @@ SearchServer::SearchServer(const StringContainer& stop_words) : stop_words_(Make
         if (!std::all_of(stop_words_.begin(), stop_words_.end(), IsValidWord)) {
             throw std::invalid_argument("Some of stop words are invalid"s);
         }
-}
-
-template <typename DocumentPredicate>
-std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_query, DocumentPredicate document_predicate) const {
-            const auto query = ParseQuery(raw_query);
-
-            auto matched_documents = FindAllDocuments(query, document_predicate);
-
-            sort(matched_documents.begin(), matched_documents.end(), [](const Document& lhs, const Document& rhs) {
-                if (std::abs(lhs.relevance - rhs.relevance) < 1e-6) {
-                    return lhs.rating > rhs.rating;
-                } 
-            });
-            if (matched_documents.size() > MAX_RESULT_DOCUMENT_COUNT) {
-                matched_documents.resize(MAX_RESULT_DOCUMENT_COUNT);
-            }
-
-            return matched_documents;
 }
 
 template <typename DocumentPredicate>
