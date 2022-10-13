@@ -11,9 +11,10 @@ void SearchServer::AddDocument(int document_id, const std::string& document, Doc
         const double inv_word_count = 1.0 / words.size();
         for (const std::string& word : words) {
             word_to_document_freqs_[word][document_id] += inv_word_count;
+            document_to_word_freqs_[document_id][word] += inv_word_count;
         }
         documents_.emplace(document_id, DocumentData{ComputeAverageRating(ratings), status});
-        document_ids_.push_back(document_id);
+        document_ids_.insert(document_id);
 }  
     
 std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_query, DocumentStatus status) const {
@@ -158,20 +159,19 @@ void MatchDocuments(SearchServer& search_server, const std::string& query) {
 }
 
 void SearchServer::RemoveDocument(int document_id) {
-    document_ids_.erase(find(document_ids_.begin(), document_ids_.end(), document_id));//
+    document_ids_.erase(find(document_ids_.begin(), document_ids_.end(), document_id));
     documents_.erase(document_id);
-    for (auto [w, freq_data] : word_to_document_freqs_) {
-            freq_data.erase(document_id);
+    for (auto [word, f] : document_to_word_freqs_.at(document_id)) {
+        word_to_document_freqs_[word].erase(document_id);
     }
+    document_to_word_freqs_.erase(document_id);
 }
 
-const std::map<std::string, double> SearchServer::GetWordFrequencies(int document_id) const {
-    std::map<std::string, double> result;
-    for (const auto item : word_to_document_freqs_) {
-        if (item.second.count(document_id) != 0) {
-            double freq = item.second.at(document_id);
-            result.insert({item.first, freq});
-        }
+const std::map<std::string, double>& SearchServer::GetWordFrequencies(int document_id) const {
+    static std::map<std::string, double> result;
+    if ( (document_to_word_freqs_.count(document_id) != 0) && (document_to_word_freqs_.at(document_id).size() != 0 ) ) {
+        return document_to_word_freqs_.at(document_id);
+    } else {
+        return result;
     }
-    return result;
 }
