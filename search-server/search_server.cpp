@@ -159,7 +159,7 @@ void MatchDocuments(SearchServer& search_server, const std::string& query) {
 }
 
 void SearchServer::RemoveDocument(int document_id) {
-    document_ids_.erase(find(document_ids_.begin(), document_ids_.end(), document_id));
+    document_ids_.erase(document_id);
     documents_.erase(document_id);
     for (auto [word, f] : document_to_word_freqs_.at(document_id)) {
         word_to_document_freqs_[word].erase(document_id);
@@ -168,10 +168,10 @@ void SearchServer::RemoveDocument(int document_id) {
 }
 
 const std::map<std::string, double>& SearchServer::GetWordFrequencies(int document_id) const {
-    static std::map<std::string, double> result;
+    static std::map<std::string, double> empty_map;
     if ( (document_to_word_freqs_.count(document_id) != 0) && (document_to_word_freqs_.at(document_id).size() != 0 ) ) {
         return document_to_word_freqs_.at(document_id);
     } else {
-        return result;
+        return empty_map;
     }
 }
