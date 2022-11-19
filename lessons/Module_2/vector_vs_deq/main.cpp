@@ -27,8 +27,8 @@ void MakeRandomDeque(long unsigned n, std::deque<T>& d) {
 }
 
 int main() {
-    std::vector<double> v;
-    std::deque<double> d;
+    std::vector<long unsigned> v;
+    std::deque<long unsigned> d;
 
     {
         LOG_DURATION("VECTOR FILLING");
@@ -39,5 +39,16 @@ int main() {
         LOG_DURATION("DEQUE FILLING");
         MakeRandomDeque(length_of_range, d);
     }
+    std::cout << std::endl;
+    {
+        LOG_DURATION("VECTOR SORTING");
+        std::sort(v.begin(), v.end());
+    }
+
+    {
+        LOG_DURATION("DEQUE SORTING");
+        std::sort(d.begin(), d.end());
+    }
+
     return 0;
 }
