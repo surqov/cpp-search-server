@@ -1,6 +1,7 @@
 #pragma once
 #include "string_processing.h"
 #include "document.h"
+#include "process_queries.h"
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -10,6 +11,7 @@
 #include <string>
 #include <vector>
 #include <numeric>
+#include <execution>
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
 const double ACCURACY = 1e-6;
@@ -150,3 +152,5 @@ void AddDocument(SearchServer& search_server, int document_id, const std::string
 void FindTopDocuments(const SearchServer& search_server, const std::string& raw_query);
 
 void MatchDocuments(const SearchServer& search_server, const std::string& query);
+
+void RemoveDuplicates(SearchServer& search_server);

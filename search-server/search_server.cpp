@@ -159,7 +159,7 @@ void MatchDocuments(SearchServer& search_server, const std::string& query) {
 }
 
 void SearchServer::RemoveDocument(int document_id) {
-    document_ids_.erase(document_id);
+    document_ids_.erase(find(document_ids_.begin(), document_ids_.end(), document_id));
     documents_.erase(document_id);
     for (auto [word, f] : document_to_word_freqs_.at(document_id)) {
         word_to_document_freqs_[word].erase(document_id);
@@ -168,10 +168,31 @@ void SearchServer::RemoveDocument(int document_id) {
 }
 
 const std::map<std::string, double>& SearchServer::GetWordFrequencies(int document_id) const {
-    static std::map<std::string, double> empty_map;
+    static std::map<std::string, double> result;
     if ( (document_to_word_freqs_.count(document_id) != 0) && (document_to_word_freqs_.at(document_id).size() != 0 ) ) {
         return document_to_word_freqs_.at(document_id);
     } else {
-        return empty_map;
+        return result;
     }
+}
+
+void RemoveDuplicates(SearchServer& search_server) {
+    std::set<int> duplicates_id;
+    std::map<std::set<std::string>, std::set<int>> work_base;
+        for (const int id : search_server) {
+            std::set<std::string> words_;
+            for (const auto& [words_from_doc, d] : search_server.GetWordFrequencies(id)) {
+                words_.insert(words_from_doc);
+            }
+            const int last_item = *(work_base[words_].end());
+            work_base[words_].insert(id);
+            if (work_base.at(words_).size() > 1) {
+                duplicates_id.insert(std::max(id, last_item));
+            }
+        }
+           
+        for (const int id : duplicates_id) {
+            std::cout << "Found duplicate document id " << id << std::endl;
+            search_server.RemoveDocument(id);
+        }
 }
