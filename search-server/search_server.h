@@ -42,9 +42,43 @@ auto end() const {
     return document_ids_.end();
 }
 
-    std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(const std::string& raw_query, int document_id) const;
-
+template <class ExecutionPolicy>
+void RemoveDocument(ExecutionPolicy&& policy, int document_id) {
+    if (std::find(policy,
+                 std::begin(document_ids_),
+                 std::end(document_ids_),
+                 document_id) == document_ids_.end()) {
+        return;
+    }
+    
+    const auto& id_words = document_to_word_freqs_.at(document_id);
+    std::vector<std::string> words_(id_words.size());
+    std::transform(policy,
+                   std::begin(id_words),
+                   std::end(id_words),
+                   std::begin(words_),
+                   [](const auto& pair) {
+                       return pair.first;
+                   });
+    
+    std::for_each(policy, 
+                  std::begin(words_),
+                  std::end(words_),
+                  [this, document_id](const auto& word){
+                     word_to_document_freqs_[word].erase(document_id);
+                  });
+    document_ids_.erase(document_id);
+    documents_.erase(document_id);
+    document_to_word_freqs_.erase(document_id);
+}
+    
 void RemoveDocument(int document_id);
+    
+std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(const std::string& raw_query, int document_id) const;    
+    
+std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(std::execution::sequenced_policy, const std::string& raw_query, int document_id) const;
+    
+std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(std::execution::parallel_policy, const std::string& raw_query, int document_id) const;
     
 const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
     
@@ -81,6 +115,10 @@ private:
     };
 
     Query ParseQuery(const std::string& text) const;
+    
+    Query ParseQuery(std::execution::sequenced_policy, const std::string& text) const;
+    
+    Query ParseQuery(std::execution::parallel_policy, const std::string& text) const;
 
     double ComputeWordInverseDocumentFreq(const std::string& word) const;
 
@@ -151,6 +189,22 @@ void AddDocument(SearchServer& search_server, int document_id, const std::string
 
 void FindTopDocuments(const SearchServer& search_server, const std::string& raw_query);
 
-void MatchDocuments(const SearchServer& search_server, const std::string& query);
+template <class ExecutionPolicy>
+void MatchDocument(ExecutionPolicy&& policy, SearchServer& search_server, const std::string& query) {
+    try {
+        std::cout << "Матчинг документов по запросу: "s << query << std::endl;
+        std::for_each(policy,
+                        std::begin(search_server),
+                        std::end(search_server),
+                        [search_server, query](const int document_id) {
+                            const auto [words, status] = search_server.MatchDocument(query, document_id);
+                            PrintMatchDocumentResult(document_id, words, status);
+                        });
+    } catch (const std::invalid_argument& e) {
+        std::cout << "Ошибка матчинга документов на запрос "s << query << ": "s << e.what() << std::endl;
+    }
+}
+
+void MatchDocument(const SearchServer& search_server, const std::string& query);
 
 void RemoveDuplicates(SearchServer& search_server);
