@@ -80,8 +80,6 @@ int main() {
     const string query = GenerateQuery(generator, dictionary, 500, 0.1);
 
     SearchServer search_server(dictionary[0]);
-    std::cout << search_server.
-
     for (size_t i = 0; i < documents.size(); ++i) {
         search_server.AddDocument(i, documents[i], DocumentStatus::ACTUAL, {1, 2, 3});
     }

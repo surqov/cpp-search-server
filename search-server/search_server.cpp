@@ -2,14 +2,14 @@
 
 SearchServer::SearchServer(const std::string& stop_words_text): SearchServer(SplitIntoWords(stop_words_text)){ }
 
-void SearchServer::AddDocument(int document_id, const std::string_view& document, DocumentStatus status, const std::vector<int>& ratings) {
+void SearchServer::AddDocument(int document_id, const std::string& document, DocumentStatus status, const std::vector<int>& ratings) {
         if ((document_id < 0) || (documents_.count(document_id) > 0)) {
             throw std::invalid_argument("Invalid document_id"s);
         }
         const auto words = SplitIntoWordsNoStop(document);
 
         const double inv_word_count = 1.0 / words.size();
-        for (const std::string_view& word : words) {
+        for (const std::string& word : words) {
             word_to_document_freqs_[word][document_id] += inv_word_count;
             document_to_word_freqs_[document_id][word] += inv_word_count;
         }
@@ -37,20 +37,20 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
         auto& minus = query.minus_words;
         const auto& words_freq = word_to_document_freqs_;
         std::vector<std::string_view> matched_words;
-        bool minus_check = std::any_of(std::execution::par,
+        bool minus_check = std::any_of(std::execution::seq,
                                        std::begin(minus),
                                        std::end(minus),
-                                       [document_id, &words_freq](const std::string_view& word){
+                                       [document_id, &words_freq](const std::string& word){
                                            return (words_freq.at(word).count(document_id));
                                        });
     
         if (!minus_check && plus.size()) {
-            std::copy_if(std::execution::par,
+            std::copy_if(std::execution::seq,
                          std::begin(plus),
                          std::end(plus),
                          std::back_inserter(matched_words),
                          [&words_freq, document_id]
-                         (const std::string_view& word){
+                         (const std::string& word){
                              return (words_freq.at(word).count(document_id));
                          }
             );
@@ -72,7 +72,7 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
         bool minus_check = std::any_of(std::execution::seq,
                                        std::begin(minus),
                                        std::end(minus),
-                                       [document_id, &words_freq](const std::string_view& word){
+                                       [document_id, &words_freq](const std::string& word){
                                            return (words_freq.at(word).count(document_id));
                                        });
     
@@ -82,7 +82,7 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
                          std::end(plus),
                          std::back_inserter(matched_words),
                          [&words_freq, document_id]
-                         (const std::string_view& word){
+                         (const std::string& word){
                              return (words_freq.at(word).count(document_id));
                          }
             );
@@ -111,14 +111,14 @@ bool SearchServer::IsValidWord(const std::string_view& word) {
         });
 }
 
-std::vector<std::string_view> SearchServer::SplitIntoWordsNoStop(const std::string_view& text) const {
-        std::vector<std::string_view> words;
+std::vector<std::string> SearchServer::SplitIntoWordsNoStop(const std::string& text) const {
+        std::vector<std::string> words;
         for (const std::string_view& word : SplitIntoWords(text)) {
             if (!IsValidWord(word)) {
                 throw std::invalid_argument("Word "s + std::string(word) + " is invalid"s);
             }
             if (!IsStopWord(word)) {
-                words.push_back(word);
+                words.push_back(std::string(word));
             }
         }
         return words;
@@ -145,11 +145,11 @@ SearchServer::QueryWord SearchServer::ParseQueryWord(const std::string_view& tex
             is_minus = true;
             word = word.substr(1);
         }
-        if (word.empty() || word[0] == '-' || !IsValidWord(word)) {
+        if (word.empty() || word[0] == '-' || !IsValidWord(std::string(word))) {
             throw std::invalid_argument("Query word "s + std::string(text) + " is invalid");
         }
 
-        return {word, is_minus, IsStopWord(word)};
+        return {std::string(word), is_minus, IsStopWord(word)};
 }
 
 SearchServer::Query SearchServer::ParseQuery(const std::string_view& text) const {
@@ -201,10 +201,10 @@ SearchServer::Query SearchServer::ParseQuery(std::execution::parallel_policy, co
 }
 
 double SearchServer::ComputeWordInverseDocumentFreq(const std::string_view& word) const {
-        return log(GetDocumentCount() * 1.0 / word_to_document_freqs_.at(word).size());
+        return log(GetDocumentCount() * 1.0 / word_to_document_freqs_.at(std::string(word)).size());
 }
 
-void AddDocument(SearchServer& search_server, int document_id, const std::string_view& document, DocumentStatus status,
+void AddDocument(SearchServer& search_server, int document_id, const std::string& document, DocumentStatus status,
                  const std::vector<int>& ratings) {
     try {
         search_server.AddDocument(document_id, document, status, ratings);
@@ -232,8 +232,8 @@ void SearchServer::RemoveDocument(int document_id) {
     RemoveDocument(std::execution::seq, document_id);
 }
 
-const std::map<std::string_view, double>& SearchServer::GetWordFrequencies(int document_id) const {
-    static std::map<std::string_view, double> result;
+const std::map<std::string, double>& SearchServer::GetWordFrequencies(int document_id) const {
+    static std::map<std::string, double> result;
     if ( (document_to_word_freqs_.count(document_id) != 0) && (document_to_word_freqs_.at(document_id).size() != 0 ) ) {
         return document_to_word_freqs_.at(document_id);
     } else {

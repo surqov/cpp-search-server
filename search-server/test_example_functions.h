@@ -244,6 +244,7 @@ void TestMyTopDocuments(){
 
 void TestFromStudencov(){
     SearchServer search_server("and with"s);
+
         
     int id = 0;
     for (
@@ -266,6 +267,7 @@ void TestFromStudencov(){
         for (auto w : words) {
             std::cout << w << " ";
         }
+        
         std::cout << std::endl;
     }
 
@@ -300,7 +302,7 @@ void TestSearchServer() {
     TestRelevanceCalc();
     TestMatchingDocs();
     TestMyTopDocuments();
-    //TestFromStudencov();
+    TestFromStudencov();
 }
 
 // --------- Окончание модульных тестов поисковой системы -----------
