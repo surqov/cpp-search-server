@@ -37,23 +37,22 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
         auto& minus = query.minus_words;
         const auto& words_freq = word_to_document_freqs_;
         std::vector<std::string_view> matched_words;
+
         bool minus_check = std::any_of(std::execution::seq,
                                        std::begin(minus),
                                        std::end(minus),
                                        [document_id, &words_freq](const std::string& word){
                                            return (words_freq.at(word).count(document_id));
                                        });
-    
-        if (!minus_check && plus.size()) {
-            std::copy_if(std::execution::seq,
-                         std::begin(plus),
-                         std::end(plus),
-                         std::back_inserter(matched_words),
-                         [&words_freq, document_id]
-                         (const std::string& word){
-                             return (words_freq.at(word).count(document_id));
-                         }
-            );
+        if (!minus_check){
+            for (const std::string& word : plus) {
+                if (word_to_document_freqs_.count(word) == 0) {
+                    continue;
+                }
+                if (word_to_document_freqs_.at(word).count(document_id)) {
+                    matched_words.push_back(word);
+                }
+            }
         }
     
     return {matched_words, documents_.at(document_id).status};
@@ -87,7 +86,7 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
                          }
             );
         }
-    
+   
         if (matched_words.size()) {
             std::sort(std::execution::seq,
                      std::begin(matched_words),
@@ -102,7 +101,7 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
 }
 
 bool SearchServer::IsStopWord(const std::string_view& word) const {
-        return stop_words_.count(word) > 0;
+        return stop_words_.count(std::string(word)) > 0;
 }
 
 bool SearchServer::IsValidWord(const std::string_view& word) {

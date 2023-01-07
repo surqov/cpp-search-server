@@ -71,7 +71,7 @@ void Test(string_view mark, SearchServer search_server, const string& query, Exe
 
 int main() {
     TestSearchServer();
-
+    
     mt19937 generator;
 
     const auto dictionary = GenerateDictionary(generator, 1000, 10);

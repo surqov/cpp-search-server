@@ -13,6 +13,7 @@
 #include <numeric>
 #include <execution>
 #include <string_view>
+#include <future>
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
 const double ACCURACY = 1e-6;
@@ -90,7 +91,7 @@ private:
         int rating = 0;
         DocumentStatus status;
     };
-    const std::set<std::string_view> stop_words_;
+    const std::set<std::string> stop_words_;
     std::map<std::string, std::map<int, double>> word_to_document_freqs_;
     std::map<int, std::map<std::string, double>> document_to_word_freqs_;
     std::map<int, DocumentData> documents_;

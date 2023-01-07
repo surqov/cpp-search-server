@@ -103,6 +103,9 @@ void TestStopWords(){
     SearchServer server(stop_words);
     server.AddDocument(doc_id, document, status, ratings);
     ASSERT(server.FindTopDocuments(request).empty()); 
+    
+    auto [words_, status_] = server.MatchDocument(request, 1);
+    assert(words_.empty());
 }
 
 //документы с минус словами не должны включаться в результаты поиска
@@ -242,15 +245,15 @@ void TestMyTopDocuments(){
     assert(server.FindTopDocuments(request).at(0).id == 1);
 }
 
-void TestFromStudencov(){
-    SearchServer search_server("and with"s);
+void TestMatchedSize(){
+    SearchServer search_server("with and"s);
 
         
     int id = 0;
     for (
         const std::string& text : {
-            "funny pet and nasty rat"s,
-            "funny pet with curly hair"s,
+            "funny pet and nasty rat with"s,
+            "funny pet with and with curly hair"s,
             "funny pet and not very nasty rat"s,
             "pet with rat and rat and rat"s,
             "nasty rat with curly hair"s,
@@ -259,21 +262,20 @@ void TestFromStudencov(){
         search_server.AddDocument(++id, text, DocumentStatus::ACTUAL, {1, 2});
     }
 
-    const string query = "curly and funny -not"s;
+    const string query = "curly and funny with -not"s;
+    
 
     {
         const auto [words, status] = search_server.MatchDocument(query, 1);
-        cout << words.size() << " words for document 1"s << endl; // ожидаем 1
+        assert(words.size() == 1); // ожидаем 1
         for (auto w : words) {
             std::cout << w << " ";
         }
-        
         std::cout << std::endl;
     }
-
     {
         const auto [words, status] = search_server.MatchDocument(execution::seq, query, 2);
-        std::cout << words.size() <<  " words for document 2"s << endl; // ожидаем 2
+        assert(words.size() == 2); // ожидаем 2
         for (auto w : words) {
             std::cout << w << " ";
         }
@@ -282,7 +284,7 @@ void TestFromStudencov(){
 
     {
         const auto [words, status] = search_server.MatchDocument(execution::par, query, 3);
-        cout << words.size() << " words for document 3"s << endl; // ожидаем 0
+        assert(words.size() == 0); // ожидаем 0
         for (auto w : words) {
             std::cout << w << " ";
         }
@@ -302,7 +304,7 @@ void TestSearchServer() {
     TestRelevanceCalc();
     TestMatchingDocs();
     TestMyTopDocuments();
-    TestFromStudencov();
+    TestMatchedSize();
 }
 
 // --------- Окончание модульных тестов поисковой системы -----------
