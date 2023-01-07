@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "log_duration.h"
+#include "test_example_functions.h"
 
 using namespace std;
 
@@ -69,6 +70,8 @@ void Test(string_view mark, SearchServer search_server, const string& query, Exe
 #define TEST(policy) Test(#policy, search_server, query, execution::policy)
 
 int main() {
+    TestSearchServer();
+
     mt19937 generator;
 
     const auto dictionary = GenerateDictionary(generator, 1000, 10);

@@ -2,6 +2,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <string_view>
 
 using namespace std::literals;
 
@@ -30,4 +31,4 @@ enum class DocumentStatus {
 
 void PrintDocument(const Document& document);
 
-void PrintMatchDocumentResult(int document_id, const std::vector<std::string>& words, DocumentStatus status);
+void PrintMatchDocumentResult(int document_id, const std::vector<std::string_view>& words, DocumentStatus status);
