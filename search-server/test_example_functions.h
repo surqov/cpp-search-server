@@ -7,6 +7,7 @@
 #include <string>
 
 #include "search_server.h"
+#include "process_queries.h"
 
 using namespace std;
 
@@ -246,27 +247,27 @@ void TestMyTopDocuments(){
 }
 
 void TestMatchedSize(){
-    SearchServer search_server("with and"s);
-
+    SearchServer search_server("and with"s);
         
     int id = 0;
     for (
         const std::string& text : {
-            "funny pet and nasty rat with"s,
-            "funny pet with and with curly hair"s,
-            "funny pet and not very nasty rat"s,
-            "pet with rat and rat and rat"s,
-            "nasty rat with curly hair"s,
+            "funny pet and nasty rat with"s, //1
+            "funny pet with and with curly hair"s, //2
+            "funny pet and not very nasty rat"s, //3
+            "pet with rat and rat and rat"s, //4
+            "nasty rat with curly hair"s, //5
         }
     ) {
         search_server.AddDocument(++id, text, DocumentStatus::ACTUAL, {1, 2});
     }
-
+    
     const string query = "curly and funny with -not"s;
     
-
+    std::cout << std::endl << std::endl << std::endl;
     {
         const auto [words, status] = search_server.MatchDocument(query, 1);
+        for (auto i : search_server.FindTopDocuments(query)) std::cout << i << std::endl;
         assert(words.size() == 1); // ожидаем 1
         for (auto w : words) {
             std::cout << w << " ";
@@ -292,19 +293,44 @@ void TestMatchedSize(){
     }
 }
 
+void TestProcessQueries(){
+    SearchServer search_server("and with"s);
+    int id = 0;
+    for (
+        const string& text : {
+            "funny pet and nasty rat"s,
+            "funny pet with curly hair"s,
+            "funny pet and not very nasty rat"s,
+            "pet with rat and rat and rat"s,
+            "nasty rat with curly hair"s,
+        }
+    ) {
+        search_server.AddDocument(++id, text, DocumentStatus::ACTUAL, {1, 2});
+    }
+    const vector<string> queries = {
+        "nasty rat -not"s,
+        "not very funny nasty pet"s,
+        "curly hair"s
+    };
+    for (const Document& document : ProcessQueriesJoined(search_server, queries)) {
+        cout << "Document "s << document.id << " matched with relevance "s << document.relevance << endl;
+    }
+}
+
 // Функция TestSearchServer является точкой входа для запуска тестов
 void TestSearchServer() {
-    TestExcludeStopWordsFromAddedDocumentContent();
-    TestAddDocument();
-    TestStopWords();   
-    TestMinusWords();  
-    TestDescendingRelevance();
-    TestPredicateFilter();
-    TestDocumentsStatus();
-    TestRelevanceCalc();
-    TestMatchingDocs();
-    TestMyTopDocuments();
-    TestMatchedSize();
+    //TestExcludeStopWordsFromAddedDocumentContent();
+    //TestAddDocument();
+    //TestStopWords();   
+    //TestMinusWords();  
+    //TestDescendingRelevance();
+    //TestPredicateFilter();
+    //TestDocumentsStatus();
+    //TestRelevanceCalc();
+    //TestMatchingDocs();
+    //TestMyTopDocuments();
+    //TestMatchedSize();
+    TestProcessQueries();
 }
 
 // --------- Окончание модульных тестов поисковой системы -----------

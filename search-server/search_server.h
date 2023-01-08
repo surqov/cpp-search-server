@@ -26,8 +26,10 @@ public:
     
     template <typename StringContainer>
 SearchServer(const StringContainer& stop_words);
+    
+    ~SearchServer() = default;
 
-    void AddDocument(int document_id, const std::string& document, DocumentStatus status, const std::vector<int>& ratings);
+    void AddDocument(int document_id, const std::string_view& document, DocumentStatus status, const std::vector<int>& ratings);
     
     template <typename DocumentPredicate>
     std::vector<Document> FindTopDocuments(const std::string_view& raw_query, DocumentPredicate document_predicate) const;
@@ -84,16 +86,19 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> MatchDocument(std::exe
     
 std::tuple<std::vector<std::string_view>, DocumentStatus> MatchDocument(std::execution::parallel_policy, const std::string_view& raw_query, int document_id) const;
     
-const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
+const std::map<std::string_view, double>& GetWordFrequencies(int document_id) const;
     
 private:
     struct DocumentData {
         int rating = 0;
         DocumentStatus status;
     };
-    const std::set<std::string> stop_words_;
-    std::map<std::string, std::map<int, double>> word_to_document_freqs_;
-    std::map<int, std::map<std::string, double>> document_to_word_freqs_;
+    const std::string raw_stop_words_;
+    std::vector<std::string> raw_documents_text_;
+    
+    const std::set<std::string_view> stop_words_;
+    std::map<std::string_view, std::map<int, double>> word_to_document_freqs_;
+    std::map<int, std::map<std::string_view, double>> document_to_word_freqs_;
     std::map<int, DocumentData> documents_;
     std::set<int> document_ids_;
 
@@ -101,12 +106,12 @@ private:
 
     static bool IsValidWord(const std::string_view& word);
 
-    std::vector<std::string> SplitIntoWordsNoStop(const std::string& text) const;
+    std::vector<std::string_view> SplitIntoWordsNoStop(const std::string_view& text) const;
 
     static int ComputeAverageRating(const std::vector<int>& ratings);
 
     struct QueryWord {
-        std::string data;
+        std::string_view data;
         bool is_minus;
         bool is_stop;
     };
@@ -114,8 +119,8 @@ private:
     QueryWord ParseQueryWord(const std::string_view& text) const;
 
     struct Query {
-        std::vector<std::string> plus_words;
-        std::vector<std::string> minus_words;
+        std::vector<std::string_view> plus_words;
+        std::vector<std::string_view> minus_words;
     };
 
     Query ParseQuery(const std::string_view& text) const;
@@ -142,10 +147,10 @@ template <typename DocumentPredicate>
                 return lhs.relevance > rhs.relevance;
             }
         });
+        
         if (matched_documents.size() > MAX_RESULT_DOCUMENT_COUNT) {
             matched_documents.resize(MAX_RESULT_DOCUMENT_COUNT);
         }
-
         return matched_documents;
     } 
 
@@ -159,7 +164,7 @@ SearchServer::SearchServer(const StringContainer& stop_words) : stop_words_(Make
 template <typename DocumentPredicate>
 std::vector<Document> SearchServer::FindAllDocuments(const Query& query, DocumentPredicate document_predicate) const {
         std::map<int, double> document_to_relevance;
-        for (const std::string& word : query.plus_words) {
+        for (const std::string_view& word : query.plus_words) {
             if (word_to_document_freqs_.count(word) == 0) {
                 continue;
             }
@@ -172,7 +177,7 @@ std::vector<Document> SearchServer::FindAllDocuments(const Query& query, Documen
             }
         }
 
-        for (const std::string& word : query.minus_words) {
+        for (const std::string_view& word : query.minus_words) {
             if (word_to_document_freqs_.count(word) == 0) {
                 continue;
             }
@@ -188,7 +193,7 @@ std::vector<Document> SearchServer::FindAllDocuments(const Query& query, Documen
         return matched_documents;
     }
 
-void AddDocument(SearchServer& search_server, int document_id, const std::string& document, DocumentStatus status,
+void AddDocument(SearchServer& search_server, int document_id, const std::string_view& document, DocumentStatus status,
                  const std::vector<int>& ratings);
 
 void FindTopDocuments(const SearchServer& search_server, const std::string_view& raw_query);
