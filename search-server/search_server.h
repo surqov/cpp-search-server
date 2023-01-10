@@ -13,7 +13,6 @@
 #include <numeric>
 #include <execution>
 #include <string_view>
-#include <future>
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
 const double ACCURACY = 1e-6;
@@ -94,7 +93,7 @@ private:
         DocumentStatus status;
     };
     const std::string raw_stop_words_;
-    std::vector<std::string> raw_documents_text_;
+    std::set<std::string> raw_documents_text_;
     
     const std::set<std::string_view> stop_words_;
     std::map<std::string_view, std::map<int, double>> word_to_document_freqs_;
@@ -137,7 +136,8 @@ std::vector<Document> FindAllDocuments(const Query& query, DocumentPredicate doc
 
 template <typename DocumentPredicate>
     std::vector<Document> SearchServer::FindTopDocuments(const std::string_view& raw_query, DocumentPredicate document_predicate) const {
-        const auto query = std::move(ParseQuery(raw_query));    
+        const auto query = ParseQuery(raw_query); 
+  
         auto matched_documents = FindAllDocuments(query, document_predicate);
 
         std::sort(matched_documents.begin(), matched_documents.end(), [](const Document& lhs, const Document& rhs) {
@@ -188,7 +188,7 @@ std::vector<Document> SearchServer::FindAllDocuments(const Query& query, Documen
 
         std::vector<Document> matched_documents;
         for (const auto [document_id, relevance] : document_to_relevance) {
-            matched_documents.push_back({document_id, relevance, documents_.at(document_id).rating});
+            matched_documents.emplace_back(document_id, relevance, documents_.at(document_id).rating);
         }
         return matched_documents;
     }

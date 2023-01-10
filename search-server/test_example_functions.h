@@ -264,7 +264,6 @@ void TestMatchedSize(){
     
     const string query = "curly and funny with -not"s;
     
-    std::cout << std::endl << std::endl << std::endl;
     {
         const auto [words, status] = search_server.MatchDocument(query, 1);
         for (auto i : search_server.FindTopDocuments(query)) std::cout << i << std::endl;
@@ -293,7 +292,7 @@ void TestMatchedSize(){
     }
 }
 
-void TestProcessQueries(){
+void TestMyProcessQueries(){
     SearchServer search_server("and with"s);
     int id = 0;
     for (
@@ -319,18 +318,18 @@ void TestProcessQueries(){
 
 // Функция TestSearchServer является точкой входа для запуска тестов
 void TestSearchServer() {
-    //TestExcludeStopWordsFromAddedDocumentContent();
-    //TestAddDocument();
-    //TestStopWords();   
-    //TestMinusWords();  
-    //TestDescendingRelevance();
-    //TestPredicateFilter();
-    //TestDocumentsStatus();
-    //TestRelevanceCalc();
-    //TestMatchingDocs();
-    //TestMyTopDocuments();
-    //TestMatchedSize();
-    TestProcessQueries();
+    TestExcludeStopWordsFromAddedDocumentContent();
+    TestAddDocument();
+    TestStopWords();   
+    TestMinusWords();  
+    TestDescendingRelevance();
+    TestPredicateFilter();
+    TestDocumentsStatus();
+    TestRelevanceCalc();
+    TestMatchingDocs();
+    TestMyTopDocuments();
+    TestMatchedSize();
+    TestMyProcessQueries();
 }
 
 // --------- Окончание модульных тестов поисковой системы -----------

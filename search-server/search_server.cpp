@@ -12,9 +12,9 @@ void SearchServer::AddDocument(int document_id, const std::string_view& document
         if ((document_id < 0) || (documents_.count(document_id) > 0)) {
             throw std::invalid_argument("Invalid document_id"s);
         }
-        raw_documents_text_.push_back(std::string(std::move(document)));
-        const auto words = std::move(SplitIntoWordsNoStop(raw_documents_text_.back()));
-
+        raw_documents_text_.insert(std::string(document));
+        const auto words = SplitIntoWordsNoStop(*find(raw_documents_text_.begin(), raw_documents_text_.end(), std::string(document)));
+        
         const double inv_word_count = 1.0 / words.size();
         for (const std::string_view& word : words) {
             word_to_document_freqs_[word][document_id] += inv_word_count;
@@ -52,6 +52,7 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
                                            return (words_freq.at(word).count(document_id));
                                        });
         if (!minus_check){
+            matched_words.reserve(plus.size());
             for (const std::string_view& word : plus) {
                 if (word_to_document_freqs_.count(word) == 0 || stop_words_.count(word)) {
                     continue;
@@ -81,7 +82,9 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
                                        [document_id, &words_freq](const std::string_view& word){
                                            return (words_freq.at(word).count(document_id));
                                        });
+    
         if (!minus_check && plus.size()) {
+            matched_words.reserve(plus.size());
             std::copy_if(std::execution::seq,
                          std::begin(plus),
                          std::end(plus),
@@ -91,7 +94,6 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
                              return (words_freq.at(word).count(document_id));
                          }
             );
-        }
        
         if (matched_words.size()) {
             std::sort(std::execution::seq,
@@ -102,8 +104,9 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
                                  std::end(matched_words));
             matched_words.resize(std::distance(matched_words.begin(), it));
         }
+     }   
  
-        return {matched_words, documents_.at(document_id).status};
+    return {matched_words, documents_.at(document_id).status};
 }
 
 bool SearchServer::IsStopWord(const std::string_view& word) const {
@@ -151,7 +154,7 @@ SearchServer::QueryWord SearchServer::ParseQueryWord(const std::string_view& tex
             word = word.substr(1);
         }
         if (word.empty() || word[0] == '-' || !IsValidWord(word)) {
-            throw std::invalid_argument("Query word "s + std::string(text) + " is invalid");
+            throw std::invalid_argument("Query word is invalid"s);
         }
 
         return {word, is_minus, IsStopWord(word)};
@@ -169,19 +172,24 @@ SearchServer::Query SearchServer::ParseQuery(const std::string_view& text) const
                 }
             }
         }
-    
-        if  ((result.minus_words.end() - result.minus_words.begin()) > 0) {
-            std::sort(result.minus_words.begin(), result.minus_words.end());
-            auto itm = std::unique(result.minus_words.begin(), result.minus_words.end());
-            result.minus_words.resize(std::distance(result.minus_words.begin(), itm));
-        }
-
-        if  ((result.plus_words.end() - result.plus_words.begin()) > 0) {
-            std::sort(result.plus_words.begin(), result.plus_words.end());
-            auto itp = std::unique(result.plus_words.begin(), result.plus_words.end());
-            result.plus_words.resize(std::distance(result.plus_words.begin(), itp));
-        }
-    
+    {
+            std::sort(std::execution::seq,
+                     std::begin(result.plus_words),
+                     std::end(result.plus_words));
+            auto it = std::unique(std::execution::seq,
+                                 std::begin(result.plus_words),
+                                 std::end(result.plus_words));
+            result.plus_words.resize(std::distance(result.plus_words.begin(), it));
+    }
+    {
+            std::sort(std::execution::seq,
+                     std::begin(result.minus_words),
+                     std::end(result.minus_words));
+            auto it = std::unique(std::execution::seq,
+                                 std::begin(result.minus_words),
+                                 std::end(result.minus_words));
+            result.minus_words.resize(std::distance(result.minus_words.begin(), it));
+    }
         return result;
 }
 

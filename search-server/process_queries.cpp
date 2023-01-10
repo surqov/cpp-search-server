@@ -15,7 +15,7 @@ std::vector<std::vector<Document>> ProcessQueries(
 std::vector<Document> ProcessQueriesJoined(
     const SearchServer& search_server,
     const std::vector<std::string>& queries) {
-        std::vector<std::vector<Document>> results = ProcessQueries(search_server, queries);
+        std::vector<std::vector<Document>> results = std::move(ProcessQueries(search_server, queries));
         size_t documents_count = transform_reduce(std::execution::par,
                                             results.begin(),
                                             results.end(),
