@@ -58,17 +58,10 @@ void Test(string_view mark, Container keys, Function function) {
 #define TEST(function) Test(#function, keys, function<remove_const_t<decltype(keys)>, Reverser>)
 
 
-template <typename ForwardRange, typename Function>
-void ForEach(ForwardRange& range, Function function) {
-    std::for_each(std::execution::seq,
-                    std::begin(range),
-                    std::end(range),
-                    function);
-}
-
 template <class ExecutionPolicy, typename ForwardRange, typename Function>
 void ForEach(ExecutionPolicy& policy, ForwardRange& range, Function function) {
-    if constexpr (is_same_v<decay_t<ExecutionPolicy>, std::execution::parallel_policy>) {
+    if constexpr ((is_same_v<decay_t<ExecutionPolicy>, std::execution::parallel_policy>) &&
+                (!is_same_v<typename iterator_traits<typename ForwardRange::iterator>::iterator_category, random_access_iterator_tag>)) {
         size_t steps_ = range.size() > BASIC_STREAM_COUNT
                                         ? range.size() / BASIC_STREAM_COUNT
                                         : 1; // каждые n шагов - запускаем поток
@@ -81,15 +74,15 @@ void ForEach(ExecutionPolicy& policy, ForwardRange& range, Function function) {
         for (auto it = range.begin(); it != range.end(); ++it, ++curr_step_) {
             if (range.size() / steps_ - 1 == n) {
                 results_.push_back(
-                    async([begin_, end_, function, policy]{
-                        for_each(policy, begin_, end_, function);
+                    async([begin_, end_, function]{
+                        for_each(std::execution::par, begin_, end_, function);
                     })
                 );
                 break;
             } else if (curr_step_ % steps_ == 0) {
                 results_.push_back(
                     async([begin_, it, function, policy]{
-                        for_each(policy, begin_, it, function);
+                        for_each(std::execution::par, begin_, it, function);
                     })
                 );
                 begin_ = it;
@@ -97,8 +90,16 @@ void ForEach(ExecutionPolicy& policy, ForwardRange& range, Function function) {
             }
         }
     } else {
-        ForEach(range, function);
+        std::for_each(policy,
+                    std::begin(range),
+                    std::end(range),
+                    function);
     }
+}
+
+template <typename ForwardRange, typename Function>
+void ForEach(ForwardRange& range, Function function) {
+    ForEach(std::execution::seq, range, function);
 }
 
 int main() {
