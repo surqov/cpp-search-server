@@ -15,6 +15,14 @@ const int BASIC_STREAM_COUNT = 5;
 
 using namespace std;
 
+template <typename Strings>
+void PrintStrings(const Strings& strings) {
+    for (string_view s : strings) {
+        cout << s << " ";
+    }
+    cout << endl;
+}
+
 string GenerateWord(mt19937& generator, int max_length) {
     const int length = uniform_int_distribution(1, max_length)(generator);
     string word;
@@ -49,55 +57,82 @@ void Test(string_view mark, Container keys, Function function) {
 
 #define TEST(function) Test(#function, keys, function<remove_const_t<decltype(keys)>, Reverser>)
 
+
 template <typename ForwardRange, typename Function>
 void ForEach(ForwardRange& range, Function function) {
-    size_t steps_ = range.size() > BASIC_STREAM_COUNT
-                                    ? range.size() / BASIC_STREAM_COUNT
-                                    : 1; // каждые n шагов - запускаем поток
-    size_t curr_step_ = 1; // текущий шаг = 0
-    auto begin_ = range.begin(); // итератор начала текущего чанка
-    [[maybe_unused]] auto end_ = range.end(); // конец контейнера
-    vector<future<void>> results_; // вектор потоков
-    size_t n = 0; // кол-во запусков
-    
-    for (auto it = range.begin(); it != range.end(); ++it, ++curr_step_) {
-        if (range.size() / steps_ - 1 == n) {
-            results_.push_back(
-                async([begin_, end_, function]{
-                    for_each(execution::par, begin_, end_, function);
-                })
-            );
-            break;
-        } else if (curr_step_ % steps_ == 0) {
-            results_.push_back(
-                async([begin_, it, function]{
-                    for_each(execution::par, begin_, it, function);
-                })
-            );
-            begin_ = it;
-            ++n;
+    std::for_each(std::execution::seq,
+                    std::begin(range),
+                    std::end(range),
+                    function);
+}
+
+template <class ExecutionPolicy, typename ForwardRange, typename Function>
+void ForEach(ExecutionPolicy& policy, ForwardRange& range, Function function) {
+    if constexpr (is_same_v<decay_t<ExecutionPolicy>, std::execution::parallel_policy>) {
+        size_t steps_ = range.size() > BASIC_STREAM_COUNT
+                                        ? range.size() / BASIC_STREAM_COUNT
+                                        : 1; // каждые n шагов - запускаем поток
+        size_t curr_step_ = 1; // текущий шаг = 0
+        auto begin_ = range.begin(); // итератор начала текущего чанка
+        [[maybe_unused]] auto end_ = range.end(); // конец контейнера
+        vector<future<void>> results_; // вектор потоков
+        size_t n = 0; // кол-во запусков
+
+        for (auto it = range.begin(); it != range.end(); ++it, ++curr_step_) {
+            if (range.size() / steps_ - 1 == n) {
+                results_.push_back(
+                    async([begin_, end_, function, policy]{
+                        for_each(policy, begin_, end_, function);
+                    })
+                );
+                break;
+            } else if (curr_step_ % steps_ == 0) {
+                results_.push_back(
+                    async([begin_, it, function, policy]{
+                        for_each(policy, begin_, it, function);
+                    })
+                );
+                begin_ = it;
+                ++n;
+            }
         }
+    } else {
+        ForEach(range, function);
     }
 }
 
 int main() {
-    // для итераторов с произвольным доступом тоже должно работать
-    vector<string> strings = {"1cat", "1dog", "1code", "1node", "1asd", "1qwerty", "1lolkek"};
+    auto reverser = [](string& s) { reverse(s.begin(), s.end()); };
 
-    ForEach(strings, [](string& s) {
-        reverse(s.begin(), s.end());
-    });
+    list<string> strings_list = {"cat", "dog", "code"};
 
-    for (string_view s : strings) {
-        cout << s << " ";
-    }
-    cout << endl;
-    // вывод: tac god edoc
+    ForEach(strings_list, reverser);
+    PrintStrings(strings_list);
+    // tac god edoc
 
-    mt19937 generator;
-    const auto keys = GenerateDictionary<list>(generator, 50'000, 5'000);
+    ForEach(execution::seq, strings_list, reverser);
+    PrintStrings(strings_list);
+    // cat dog code
 
-    TEST(ForEach);
+    // единственный из вызовов, где должна работать ваша версия
+    // из предыдущего задания
+    ForEach(execution::par, strings_list, reverser);
+    PrintStrings(strings_list);
+    // tac god edoc
+
+    vector<string> strings_vector = {"cat", "dog", "code"};
+
+    ForEach(strings_vector, reverser);
+    PrintStrings(strings_vector);
+    // tac god edoc
+
+    ForEach(execution::seq, strings_vector, reverser);
+    PrintStrings(strings_vector);
+    // cat dog code
+
+    ForEach(execution::par, strings_vector, reverser);
+    PrintStrings(strings_vector);
+    // tac god edoc
 
     return 0;
-}
+} 
