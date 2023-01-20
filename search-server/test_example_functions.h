@@ -8,39 +8,10 @@
 
 #include "search_server.h"
 #include "process_queries.h"
+#include "concurrent_map.h"
+#include "test_framework.h"
 
 using namespace std;
-
-#define ASSERT(expr) AssertImpl((expr), #expr, __FUNCTION__, __FILE__,__LINE__)
-
-#define ASSERT_HINT(expr, hint) AssertImpl((expr), #expr, __FUNCTION__, __FILE__,__LINE__, hint)
-
-#define ASSERT_EQUAL(value1, value2) AssertImpl((value1 == value2), #value1 == #value2, __FUNCTION__, __FILE__,__LINE__)
-
-// -------- Начало модульных тестов поисковой системы ----------
-
-void AssertImpl(const bool& value, const string& expr, const string& func_name, const string& file_name, const unsigned& line_number, const string& hint = ""s ){
-    if (!value) {
-        cerr << file_name << "("s << line_number << "): "s << func_name << ": "s << "ASSERT("s << expr << ")"s << " failed."s;
-        if (!hint.empty()) {
-            cerr << " Hint: " << hint;
-        }
-        cerr << endl;
-        abort();
-    }
-}
-
-void AssertImpl(const bool& value, const string& value1, const string& value2, const string& func_name, const string& file_name, const unsigned& line_number, const string& hint = ""s ){
-    if (!value) {
-        cerr << file_name << "("s << line_number << "): "s << func_name << ": "s << "ASSERT("s << value1 << " != "s << value2 << ")"s << " failed."s;
-        if (!hint.empty()) {
-            cerr << " Hint: " << hint;
-        }
-        cerr << endl;
-        abort();
-    }
-}
-
 
 // Тест проверяет, что поисковая система исключает стоп-слова при добавлении документов
 void TestExcludeStopWordsFromAddedDocumentContent() {
@@ -88,6 +59,8 @@ void TestAddDocument(){
     assert(doc1[0].id == 1);    
     assert(doc2[0].id == 2);
     assert(server.GetDocumentCount() == 2); 
+    
+    std::cerr << "Test Add Document - OK\n"s;
 }
 
 
@@ -107,6 +80,7 @@ void TestStopWords(){
     
     auto [words_, status_] = server.MatchDocument(request, 1);
     assert(words_.empty());
+    std::cerr << "Test Stop Words - OK\n"s;
 }
 
 //документы с минус словами не должны включаться в результаты поиска
@@ -125,6 +99,8 @@ void TestMinusWords(){
     server.AddDocument(doc_id2, document2, DocumentStatus::ACTUAL, {3, 4, 5});
     server.AddDocument(doc_id3, document3, DocumentStatus::ACTUAL, {6, 7, 8});
     ASSERT(server.FindTopDocuments(request).empty());
+    
+    std::cerr << "Test Minus Words - OK\n"s;
 }
 
 //документы по убыванию релевантности
@@ -148,6 +124,8 @@ void TestDescendingRelevance(){
     relevance2 = server.FindTopDocuments(request).at(1).relevance;
     relevance3 = server.FindTopDocuments(request).at(2).relevance;
     ASSERT((relevance1 > relevance2) && (relevance2 > relevance3));
+    
+    std::cerr << "Test Descending Relevance - OK\n"s;
 }
 
 void TestPredicateFilter(){
@@ -166,6 +144,8 @@ void TestPredicateFilter(){
     server.AddDocument(doc_id3, document3, DocumentStatus::ACTUAL, {6, 7, 8});
     auto predicate = [](int document_id, DocumentStatus , int ){ return document_id % 3 == 0;};
     assert(server.FindTopDocuments(request, predicate).at(0).id == 3);
+    
+    std::cerr << "Test Predicate Filter- OK\n"s;
 }
 
 void TestDocumentsStatus(){
@@ -184,6 +164,8 @@ void TestDocumentsStatus(){
     server.AddDocument(doc_id3, document3, DocumentStatus::ACTUAL, {6, 7, 8});
 
     assert(server.FindTopDocuments(request, DocumentStatus::BANNED).at(0).id == 2);
+    
+    std::cerr << "Test Document Status - OK\n"s;
 }
 
 void TestRelevanceCalc(){
@@ -212,6 +194,8 @@ void TestRelevanceCalc(){
     ASSERT(abs(relevance1 - ref_relevance1) < curr_accuracy);
     ASSERT(abs(relevance2 - ref_relevance2) < curr_accuracy);
     ASSERT(abs(relevance3 - ref_relevance3) < curr_accuracy);
+    
+    std::cerr << "Test Relevance Calculation - OK\n"s;
 }
 
 //матчинг документов - вернуть все слова из запроса, которые есть в документе
@@ -229,6 +213,8 @@ void TestMatchingDocs(){
     for (const string_view& stop_word : SplitIntoWords(stop_words)) {
         assert(count(matched_words.begin(), matched_words.end(), stop_word) == 0);
     }
+    
+    std::cerr << "Test Matchins Docs - OK\n"s;
 }
 
 void TestMyTopDocuments(){
@@ -244,6 +230,8 @@ void TestMyTopDocuments(){
                     server.AddDocument(id, documents.at(id-1), DocumentStatus::ACTUAL, {1, 2, 3});
                  });
     assert(server.FindTopDocuments(request).at(0).id == 1);
+    
+    std::cerr << "Test Top Documents - OK\n"s;
 }
 
 void TestMatchedSize(){
@@ -266,30 +254,32 @@ void TestMatchedSize(){
     
     {
         const auto [words, status] = search_server.MatchDocument(query, 1);
-        for (auto i : search_server.FindTopDocuments(query)) std::cout << i << std::endl;
+        //for (auto i : search_server.FindTopDocuments(query)) std::cout << i << std::endl;
         assert(words.size() == 1); // ожидаем 1
-        for (auto w : words) {
-            std::cout << w << " ";
-        }
-        std::cout << std::endl;
+        //for (auto w : words) {
+            //std::cout << w << " ";
+        //}
+        //std::cout << std::endl;
     }
     {
         const auto [words, status] = search_server.MatchDocument(execution::seq, query, 2);
         assert(words.size() == 2); // ожидаем 2
-        for (auto w : words) {
-            std::cout << w << " ";
-        }
-        std::cout << std::endl;
+        //for (auto w : words) {
+            //std::cout << w << " ";
+        //}
+        //std::cout << std::endl;
     }
 
     {
         const auto [words, status] = search_server.MatchDocument(execution::par, query, 3);
         assert(words.size() == 0); // ожидаем 0
-        for (auto w : words) {
-            std::cout << w << " ";
-        }
-        std::cout << std::endl;
+        //for (auto w : words) {
+            //std::cout << w << " ";
+        //}
+        //std::cout << std::endl;
     }
+    
+    std::cerr << "Test Matched Size - OK\n"s;
 }
 
 void TestMyProcessQueries(){
@@ -311,8 +301,90 @@ void TestMyProcessQueries(){
         "not very funny nasty pet"s,
         "curly hair"s
     };
-    for (const Document& document : ProcessQueriesJoined(search_server, queries)) {
-        cout << "Document "s << document.id << " matched with relevance "s << document.relevance << endl;
+    //for (const Document& document : ProcessQueriesJoined(search_server, queries)) {
+        //cout << "Document "s << document.id << " matched with relevance "s << document.relevance << endl;
+    //}
+    
+    std::cerr << "Test Process Queries - OK\n"s;
+}
+
+void RunConcurrentUpdates(ConcurrentMap<int, int>& cm, size_t thread_count, int key_count) {
+    auto kernel = [&cm, key_count](int seed) {
+        vector<int> updates(key_count);
+        iota(begin(updates), end(updates), -key_count / 2);
+        shuffle(begin(updates), end(updates), mt19937(seed));
+
+        for (int i = 0; i < 2; ++i) {
+            for (auto key : updates) {
+                ++cm[key].ref_to_value;
+            }
+        }
+    };
+
+    vector<future<void>> futures;
+    for (size_t i = 0; i < thread_count; ++i) {
+        futures.push_back(async(kernel, i));
+    }
+}
+
+void TestConcurrentUpdate() {
+    constexpr size_t THREAD_COUNT = 3;
+    constexpr size_t KEY_COUNT = 50000;
+
+    ConcurrentMap<int, int> cm(THREAD_COUNT);
+    RunConcurrentUpdates(cm, THREAD_COUNT, KEY_COUNT);
+
+    const auto result = cm.BuildOrdinaryMap();
+    ASSERT_EQUAL(result.size(), KEY_COUNT);
+    for (auto& [k, v] : result) {
+        AssertEqual(v, 6, "Key = " + to_string(k));
+    }
+}
+
+void TestConcurrentReadAndWrite() {
+    ConcurrentMap<size_t, string> cm(5);
+
+    auto updater = [&cm] {
+        for (size_t i = 0; i < 50000; ++i) {
+            cm[i].ref_to_value.push_back('a');
+        }
+    };
+    auto reader = [&cm] {
+        vector<string> result(50000);
+        for (size_t i = 0; i < result.size(); ++i) {
+            result[i] = cm[i].ref_to_value;
+        }
+        return result;
+    };
+
+    auto u1 = async(updater);
+    auto r1 = async(reader);
+    auto u2 = async(updater);
+    auto r2 = async(reader);
+
+    u1.get();
+    u2.get();
+
+    for (auto f : {&r1, &r2}) {
+        auto result = f->get();
+        ASSERT(all_of(result.begin(), result.end(), [](const string& s) {
+            return s.empty() || s == "a" || s == "aa";
+        }));
+    }
+}
+
+void TestConcurrentSpeedup() {
+    {
+        ConcurrentMap<int, int> single_lock(1);
+
+        LOG_DURATION("Single lock");
+        RunConcurrentUpdates(single_lock, 4, 50000);
+    }
+    {
+        ConcurrentMap<int, int> many_locks(100);
+
+        LOG_DURATION("100 locks");
+        RunConcurrentUpdates(many_locks, 4, 50000);
     }
 }
 
@@ -330,6 +402,10 @@ void TestSearchServer() {
     TestMyTopDocuments();
     TestMatchedSize();
     TestMyProcessQueries();
+    TestRunner tr;
+    RUN_TEST(tr, TestConcurrentUpdate);
+    RUN_TEST(tr, TestConcurrentReadAndWrite);
+    RUN_TEST(tr, TestConcurrentSpeedup);
 }
 
 // --------- Окончание модульных тестов поисковой системы -----------
