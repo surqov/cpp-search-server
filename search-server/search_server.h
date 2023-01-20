@@ -36,6 +36,15 @@ SearchServer(const StringContainer& stop_words);
     std::vector<Document> FindTopDocuments(const std::string_view& raw_query, DocumentStatus status) const;
 
     std::vector<Document> FindTopDocuments(const std::string_view& raw_query) const;
+    
+    template <typename DocumentPredicate, class ExecutionPolicy>
+    std::vector<Document> FindTopDocuments(ExecutionPolicy&& policy, const std::string_view& raw_query, DocumentPredicate document_predicate) const;
+
+    template <class ExecutionPolicy>
+    std::vector<Document> FindTopDocuments(ExecutionPolicy&& policy, const std::string_view& raw_query, DocumentStatus status) const;
+
+    template <class ExecutionPolicy>
+    std::vector<Document> FindTopDocuments(ExecutionPolicy&& policy, const std::string_view& raw_query) const;
 
     int GetDocumentCount() const;
     
@@ -134,8 +143,8 @@ template <typename DocumentPredicate>
 std::vector<Document> FindAllDocuments(const Query& query, DocumentPredicate document_predicate) const;
 };
 
-template <typename DocumentPredicate>
-    std::vector<Document> SearchServer::FindTopDocuments(const std::string_view& raw_query, DocumentPredicate document_predicate) const {
+template <typename DocumentPredicate, class ExecutionPolicy>
+    std::vector<Document> SearchServer::FindTopDocuments(ExecutionPolicy&&, const std::string_view& raw_query, DocumentPredicate document_predicate) const {
         const auto query = ParseQuery(raw_query); 
   
         auto matched_documents = FindAllDocuments(query, document_predicate);
@@ -152,7 +161,25 @@ template <typename DocumentPredicate>
             matched_documents.resize(MAX_RESULT_DOCUMENT_COUNT);
         }
         return matched_documents;
-    } 
+    }
+    
+template <typename DocumentPredicate>
+std::vector<Document> SearchServer::FindTopDocuments(const std::string_view& raw_query, DocumentPredicate document_predicate) const {
+    return FindTopDocuments(std::execution::seq, raw_query, document_predicate);
+}
+
+template <typename ExecutionPolicy>
+std::vector<Document> SearchServer::FindTopDocuments(ExecutionPolicy&& policy, const std::string_view& raw_query, DocumentStatus status) const {
+    return FindTopDocuments(policy, raw_query, [status](int, DocumentStatus document_status, int) {
+        return document_status == status;
+    });
+}
+
+template <typename ExecutionPolicy>
+std::vector<Document> SearchServer::FindTopDocuments(ExecutionPolicy&& policy, const std::string_view& raw_query) const {
+    return FindTopDocuments(policy, raw_query, DocumentStatus::ACTUAL);
+}
+
 
 template <typename StringContainer>
 SearchServer::SearchServer(const StringContainer& stop_words) : stop_words_(MakeUniqueNonEmptyStrings(stop_words)) {
