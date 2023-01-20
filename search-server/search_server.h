@@ -141,6 +141,9 @@ private:
 
 template <typename DocumentPredicate>
 std::vector<Document> FindAllDocuments(const Query& query, DocumentPredicate document_predicate) const;
+    
+template <typename DocumentPredicate, class ExecutionPolicy>
+std::vector<Document> FindAllDocuments(ExecutionPolicy&& policy, const Query& query, DocumentPredicate document_predicate) const;           
 };
 
 template <typename DocumentPredicate, class ExecutionPolicy>
@@ -188,8 +191,8 @@ SearchServer::SearchServer(const StringContainer& stop_words) : stop_words_(Make
         }
 }
 
-template <typename DocumentPredicate>
-std::vector<Document> SearchServer::FindAllDocuments(const Query& query, DocumentPredicate document_predicate) const {
+template <typename DocumentPredicate, class ExecutionPolicy>
+std::vector<Document> SearchServer::FindAllDocuments([[maybe_unused]] ExecutionPolicy&& policy, const Query& query, DocumentPredicate document_predicate) const {
         std::map<int, double> document_to_relevance;
         for (const std::string_view& word : query.plus_words) {
             if (word_to_document_freqs_.count(word) == 0) {
@@ -219,6 +222,10 @@ std::vector<Document> SearchServer::FindAllDocuments(const Query& query, Documen
         }
         return matched_documents;
     }
+template <typename DocumentPredicate>
+std::vector<Document> SearchServer::FindAllDocuments(const Query& query, DocumentPredicate document_predicate) const {
+    return FindAllDocuments(std::execution::seq, query, document_predicate);
+}
 
 void AddDocument(SearchServer& search_server, int document_id, const std::string_view& document, DocumentStatus status,
                  const std::vector<int>& ratings);
