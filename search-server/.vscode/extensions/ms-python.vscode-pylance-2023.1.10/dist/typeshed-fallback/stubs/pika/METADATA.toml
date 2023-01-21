@@ -1,5 +1,0 @@
-version = "1.3.*"
-upload = false  # https://github.com/python/typeshed/issues/9246
-
-[tool.stubtest]
-ignore_missing_stub = false
