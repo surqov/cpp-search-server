@@ -147,7 +147,7 @@ void TestPredicateFilter(){
     auto predicate = [](int document_id, DocumentStatus , int ){ return document_id % 3 == 0;};
     assert(server.FindTopDocuments(request, predicate).at(0).id == 3);
     
-    std::cerr << "Test Predicate Filter- OK\n"s;
+    std::cerr << "Test Predicate Filter - OK\n"s;
 }
 
 void TestDocumentsStatus(){
@@ -467,7 +467,7 @@ void TestWithExecutionPolicy_runner() {
     TEST(seq);
     std::cerr << "Execution With "s;
     TEST(par);
-    std::cerr << "Test ExecutionPolicy- OK? \n"s;  
+    std::cerr << "Test ExecutionPolicy - OK? \n"s;  
 } 
 
 // Функция TestSearchServer является точкой входа для запуска тестов
