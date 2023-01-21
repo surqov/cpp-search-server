@@ -6,6 +6,7 @@
 #include <sstream>
 #include <string>
 #include <random>
+#include <execution>
 
 #include "search_server.h"
 #include "process_queries.h"
@@ -302,11 +303,19 @@ void TestMyProcessQueries(){
         "not very funny nasty pet"s,
         "curly hair"s
     };
-    //for (const Document& document : ProcessQueriesJoined(search_server, queries)) {
-        //cout << "Document "s << document.id << " matched with relevance "s << document.relevance << endl;
-    //}
+    {
+        LOG_DURATION("Process Queries seq"s);
+        assert(std::abs(ProcessQueriesJoined(std::execution::seq, search_server, queries)[0].relevance - 0.183492) < ACCURACY);
+        
+    }
+    {
+        LOG_DURATION("Process Queries par"s);
+        assert(std::abs(ProcessQueriesJoined(std::execution::par, search_server, queries)[2].relevance - 0.167358) < ACCURACY);
+        
+    }
     
-    std::cerr << "Test Process Queries - OK\n"s;
+    
+    std::cerr << "Test Process Queries - OK? \n"s;  
 }
 
 void RunConcurrentUpdates(ConcurrentMap<int, int>& cm, size_t thread_count, int key_count) {
@@ -382,9 +391,9 @@ void TestConcurrentSpeedup() {
         RunConcurrentUpdates(single_lock, 4, 50000);
     }
     {
-        ConcurrentMap<int, int> many_locks(100);
+        ConcurrentMap<int, int> many_locks(3000);
 
-        LOG_DURATION("100 locks");
+        LOG_DURATION("3'000 locks");
         RunConcurrentUpdates(many_locks, 4, 50000);
     }
 }
@@ -441,7 +450,6 @@ void TestWithExecutionPolicy(string_view mark, const SearchServer& search_server
             total_relevance += document.relevance;
         }
     }
-    //cout << total_relevance << endl;
 }
 
 #define TEST(policy) TestWithExecutionPolicy(#policy, search_server, queries, execution::policy)
@@ -455,10 +463,11 @@ void TestWithExecutionPolicy_runner() {
         search_server.AddDocument(i, documents[i], DocumentStatus::ACTUAL, {1, 2, 3});
     }
     const auto queries = GenerateQueries(generator, dictionary, 100, 70);
-    std::cerr << "Test Execution With "s;
+    std::cerr << "Execution With "s;
     TEST(seq);
-    std::cerr << "Test Execution With "s;
+    std::cerr << "Execution With "s;
     TEST(par);
+    std::cerr << "Test ExecutionPolicy- OK? \n"s;  
 } 
 
 // Функция TestSearchServer является точкой входа для запуска тестов
