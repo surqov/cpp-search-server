@@ -40,7 +40,7 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
     }
 }
 
-//тест на добавление документа
+//Тест проверяет добавление документа в базу
 void TestAddDocument(){
     const int doc_id1 = 1;
     const int doc_id2 = 2;
@@ -66,7 +66,7 @@ void TestAddDocument(){
 }
 
 
-//тест на исключение стоп слов
+//Тест на исключение из текста выдачи СТОП-слов
 void TestStopWords(){
     const int doc_id = 1;
     const string document = "new and fresh big orange or apple"s;
@@ -85,7 +85,8 @@ void TestStopWords(){
     std::cerr << "Test Stop Words - OK\n"s;
 }
 
-//документы с минус словами не должны включаться в результаты поиска
+//Тест на исключение из выдачи документов, содержащих МИНУС-слова
+//То есть, документы с минус словами не должны включаться в результаты поиска
 void TestMinusWords(){
     const int doc_id1 = 1;
     const int doc_id2 = 2;
@@ -105,7 +106,7 @@ void TestMinusWords(){
     std::cerr << "Test Minus Words - OK\n"s;
 }
 
-//документы по убыванию релевантности
+//Тест на сортировку выдачи по убыванию релевантности
 void TestDescendingRelevance(){
     const int doc_id1 = 1;
     const int doc_id2 = 2;
@@ -130,6 +131,7 @@ void TestDescendingRelevance(){
     std::cerr << "Test Descending Relevance - OK\n"s;
 }
 
+//Тест на фильтр результатов по предикату
 void TestPredicateFilter(){
     const int doc_id1 = 1;
     const int doc_id2 = 2;
@@ -150,6 +152,7 @@ void TestPredicateFilter(){
     std::cerr << "Test Predicate Filter - OK\n"s;
 }
 
+// Тест на фильтр результатов по статусу
 void TestDocumentsStatus(){
     const int doc_id1 = 1;
     const int doc_id2 = 2;
@@ -170,6 +173,7 @@ void TestDocumentsStatus(){
     std::cerr << "Test Document Status - OK\n"s;
 }
 
+// Тест корректного расчета значений релевантности
 void TestRelevanceCalc(){
     const int doc_id1 = 1;
     const int doc_id2 = 2;
@@ -219,6 +223,7 @@ void TestMatchingDocs(){
     std::cerr << "Test Matchins Docs - OK\n"s;
 }
 
+// 
 void TestMyTopDocuments(){
     const std::vector<int> doc_id = {1, 2, 3};
     const std::vector<std::string> documents = {"new fresh big orange"s, "new orange"s, "orange"s};
@@ -236,6 +241,8 @@ void TestMyTopDocuments(){
     std::cerr << "Test Top Documents - OK\n"s;
 }
 
+// Тест проверяет размер возвращаемых результатов поиска по размеру
+// То есть проверяем
 void TestMatchedSize(){
     SearchServer search_server("and with"s);
         
@@ -284,6 +291,8 @@ void TestMatchedSize(){
     std::cerr << "Test Matched Size - OK\n"s;
 }
 
+// Тестируем рабору ProcessQueries + параллельность
+// Как заставить LOG_DURATION работать в nanosec?
 void TestMyProcessQueries(){
     SearchServer search_server("and with"s);
     int id = 0;

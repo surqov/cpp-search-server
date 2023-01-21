@@ -1,6 +1,7 @@
 #pragma once
 #include "string_processing.h"
 #include "document.h"
+#include "concurrent_map.h"
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -15,7 +16,7 @@
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
 const double ACCURACY = 1e-6;
-const int LOCKS = 3'000;
+const int LOCKS = 5'000;
 
 class SearchServer {
 public:
@@ -147,12 +148,12 @@ std::vector<Document> FindAllDocuments(ExecutionPolicy&& policy, const Query& qu
 };
 
 template <typename DocumentPredicate, class ExecutionPolicy>
-    std::vector<Document> SearchServer::FindTopDocuments(ExecutionPolicy&&, const std::string_view& raw_query, DocumentPredicate document_predicate) const {
+    std::vector<Document> SearchServer::FindTopDocuments(ExecutionPolicy&& policy, const std::string_view& raw_query, DocumentPredicate document_predicate) const {
         const auto query = ParseQuery(raw_query); 
   
-        auto matched_documents = FindAllDocuments(query, document_predicate);
+        auto matched_documents = FindAllDocuments(policy, query, document_predicate);
 
-        std::sort(matched_documents.begin(), matched_documents.end(), [](const Document& lhs, const Document& rhs) {
+        std::sort(policy, matched_documents.begin(), matched_documents.end(), [](const Document& lhs, const Document& rhs) {
             if (std::abs(lhs.relevance - rhs.relevance) < ACCURACY) {
                 return lhs.rating > rhs.rating;
             } else {
@@ -193,35 +194,46 @@ SearchServer::SearchServer(const StringContainer& stop_words) : stop_words_(Make
 
 template <typename DocumentPredicate, class ExecutionPolicy>
 std::vector<Document> SearchServer::FindAllDocuments([[maybe_unused]] ExecutionPolicy&& policy, const Query& query, DocumentPredicate document_predicate) const {
-        std::map<int, double> document_to_relevance;
-        for (const std::string_view& word : query.plus_words) {
+        ConcurrentMap<int, double> document_to_relevance(LOCKS);
+        std::vector<Document> matched_documents;
+        
+        auto plus_word_filter = [this, &document_to_relevance, &document_predicate]
+                                (const std::string_view word) {
             if (word_to_document_freqs_.count(word) == 0) {
-                continue;
+                return;
             }
             const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
             for (const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
-                const auto& document_data = documents_.at(document_id);
-                if (document_predicate(document_id, document_data.status, document_data.rating)) {
-                    document_to_relevance[document_id] += term_freq * inverse_document_freq;
+                const auto& doc_data = documents_.at(document_id);
+                if (document_predicate(document_id, doc_data.status, doc_data.rating)) {
+                    document_to_relevance[document_id].ref_to_value += term_freq * inverse_document_freq;
                 }
             }
-        }
-
-        for (const std::string_view& word : query.minus_words) {
+        };
+        
+        auto minus_word_filter = [this, &document_to_relevance]
+                                    (const std::string_view word) {
             if (word_to_document_freqs_.count(word) == 0) {
-                continue;
+                return;
             }
             for (const auto [document_id, _] : word_to_document_freqs_.at(word)) {
                 document_to_relevance.erase(document_id);
             }
-        }
-
-        std::vector<Document> matched_documents;
-        for (const auto [document_id, relevance] : document_to_relevance) {
-            matched_documents.emplace_back(document_id, relevance, documents_.at(document_id).rating);
-        }
+        };
+        
+        std::for_each(policy, std::begin(query.plus_words), std::end(query.plus_words), plus_word_filter);
+        std::for_each(policy, std::begin(query.minus_words), std::end(query.minus_words), minus_word_filter);
+        
+        auto DocsToRelevanceOrdinaryMap = std::move(document_to_relevance.BuildOrdinaryMap());
+        auto matched_word_emplacer = [this, &matched_documents](const auto& pair){
+            matched_documents.emplace_back(pair.first, pair.second, documents_.at(pair.first).rating);
+        };
+        
+        std::for_each(policy, std::begin(DocsToRelevanceOrdinaryMap), std::end(DocsToRelevanceOrdinaryMap), matched_word_emplacer);
+       
         return matched_documents;
     }
+    
 template <typename DocumentPredicate>
 std::vector<Document> SearchServer::FindAllDocuments(const Query& query, DocumentPredicate document_predicate) const {
     return FindAllDocuments(std::execution::seq, query, document_predicate);

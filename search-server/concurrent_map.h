@@ -46,6 +46,12 @@ public:
                         });
         return result;
     }
+    
+    auto erase(const Key& key) {
+        auto& chunk = chunks_[static_cast<uint64_t>(key) % chunks_.size()];
+        std::lock_guard guard(chunk.mutex_);
+        return chunk.chunk_map_.erase(key);
+    }
 
 private:
     std::vector<Chunk> chunks_;
