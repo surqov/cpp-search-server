@@ -16,7 +16,7 @@
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
 const double ACCURACY = 1e-6;
-const int LOCKS = 5'000;
+const int LOCKS = 3'000;
 
 class SearchServer {
 public:
