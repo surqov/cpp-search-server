@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "C/C++ Runner: Debug Session",
+      "type": "lldb",
+      "request": "launch",
+      "args": [],
+      "stopAtEntry": true,
+      "externalConsole": false,
+      "cwd": "/Users/gleb/github/cpp-search-server/search-server",
+      "program": "/Users/gleb/github/cpp-search-server/search-server/build/Debug/outDebug",
+      "MIMode": "gdb"
+    }
+  ]
+}
